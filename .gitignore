@@ -1,0 +1,8 @@
+# OS
+.DS_Store
+
+# Editor / IDE local state
+*.swp
+*.swo
+.idea/
+.vscode/
