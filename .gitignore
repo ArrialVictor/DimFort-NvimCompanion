@@ -6,3 +6,7 @@
 *.swo
 .idea/
 .vscode/
+
+# Python bytecode (icon generator script)
+__pycache__/
+*.pyc
