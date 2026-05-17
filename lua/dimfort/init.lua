@@ -262,14 +262,9 @@ local function on_attach(args)
   pcall(vim.lsp.inlay_hint.enable,
         M.config.inlay_hints_enabled,
         { bufnr = args.buf })
-  if M.config.inlay_hints_enabled then
-    vim.defer_fn(function()
-      if vim.api.nvim_buf_is_valid(args.buf) then
-        pcall(vim.lsp.inlay_hint.enable, false, { bufnr = args.buf })
-        pcall(vim.lsp.inlay_hint.enable, true,  { bufnr = args.buf })
-      end
-    end, 800)
-  end
+  -- DimFort emits ``workspace/inlayHint/refresh`` after every check
+  -- completes; Neovim re-queries automatically. No client-side
+  -- defer dance needed.
 end
 
 -- One-shot setup. Call from your init.lua / lazy spec:
