@@ -82,6 +82,7 @@ from your own autocommand or keymap.
 |--------------------------------|-----------------------------------------------------|
 | `:DimFortCheckWorkspace`       | Run the workspace-wide unit check.                  |
 | `:DimFortRestart`              | Restart the language server.                        |
+| `:DimFortStatus`               | Print current feature toggles and client id.        |
 | `:DimFortToggleInlayHints`     | Toggle inlay hints; restarts the server.            |
 | `:DimFortToggleCompletion`     | Toggle unit-name completion; restarts the server.   |
 | `:DimFortToggleCodeActions`    | Toggle code actions; restarts the server.           |
@@ -101,6 +102,11 @@ Same surface as the VSCode companion:
 
 ## Notes
 
+- Inlay hints render automatically once the plugin attaches — no need
+  to call `vim.lsp.inlay_hint.enable` manually. The `LspAttach`
+  handler enables them whenever the server flag is on and disables
+  them otherwise, so `:DimFortToggleInlayHints` does the right thing
+  both client- and server-side.
 - `dimfort.insertSnippet` (used by the "add `@unit{}`" code action)
   inserts the snippet literally and places the cursor at the `$0`
   position; Neovim doesn't have full LSP snippet expansion built in,

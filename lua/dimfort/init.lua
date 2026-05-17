@@ -187,6 +187,43 @@ M.toggle_code_actions     = function() toggle("code_actions_enabled",     "code 
 M.toggle_goto_definition  = function() toggle("goto_definition_enabled",  "go-to-definition")   end
 M.toggle_code_lens        = function() toggle("code_lens_enabled",        "code lens")          end
 
+-- Print the current feature flags + client state. Bound to
+-- :DimFortStatus, so users don't have to count toggles to figure out
+-- where they are.
+function M.status()
+  local function flag(v) return v and "on" or "off" end
+  local lines = {
+    "DimFort status",
+    string.format("  executable        : %s", M.config.executable),
+    string.format("  inlay hints       : %s", flag(M.config.inlay_hints_enabled)),
+    string.format("  completion        : %s", flag(M.config.completion_enabled)),
+    string.format("  code actions      : %s", flag(M.config.code_actions_enabled)),
+    string.format("  go-to-definition  : %s", flag(M.config.goto_definition_enabled)),
+    string.format("  code lens         : %s", flag(M.config.code_lens_enabled)),
+    string.format("  max workset size  : %d", M.config.max_workset_size),
+    string.format("  external modules  : %s",
+                  (next(M.config.external_modules) == nil) and "(none)"
+                  or table.concat(M.config.external_modules, ", ")),
+    string.format("  active client id  : %s", tostring(active_client_id or "(none)")),
+  }
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+end
+
+-- Run on every LspAttach for a DimFort client. Enables Neovim's
+-- buffer-local inlay-hint rendering when the server flag is on,
+-- disables it otherwise — so the user doesn't have to manage the
+-- client-side toggle separately from the server one.
+local function on_attach(args)
+  local client = vim.lsp.get_client_by_id(args.data.client_id)
+  if not client or client.name ~= "dimfort" then return end
+  active_client_id = client.id
+  if vim.lsp.inlay_hint and vim.lsp.inlay_hint.enable then
+    pcall(vim.lsp.inlay_hint.enable,
+          M.config.inlay_hints_enabled,
+          { bufnr = args.buf })
+  end
+end
+
 -- One-shot setup. Call from your init.lua / lazy spec:
 --   require("dimfort").setup({ executable = "/path/to/dimfort" })
 function M.setup(opts)
@@ -198,6 +235,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortRestart",
     function() M.restart() end,
     { desc = "DimFort: restart the language server" })
+  vim.api.nvim_create_user_command("DimFortStatus",
+    function() M.status() end,
+    { desc = "DimFort: print current feature toggles and client state" })
   vim.api.nvim_create_user_command("DimFortToggleInlayHints",
     function() M.toggle_inlay_hints() end,
     { desc = "DimFort: toggle inlay hints" })
@@ -214,8 +254,12 @@ function M.setup(opts)
     function() M.toggle_code_lens() end,
     { desc = "DimFort: toggle code lens" })
 
+  local group = vim.api.nvim_create_augroup("DimFort", { clear = true })
+  vim.api.nvim_create_autocmd("LspAttach", {
+    group = group,
+    callback = on_attach,
+  })
   if M.config.auto_attach then
-    local group = vim.api.nvim_create_augroup("DimFort", { clear = true })
     vim.api.nvim_create_autocmd("FileType", {
       group = group,
       pattern = M.config.filetypes,
