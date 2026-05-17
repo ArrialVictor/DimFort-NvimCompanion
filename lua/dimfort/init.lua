@@ -213,14 +213,62 @@ end
 -- buffer-local inlay-hint rendering when the server flag is on,
 -- disables it otherwise — so the user doesn't have to manage the
 -- client-side toggle separately from the server one.
+--
+-- There's a race on initial attach: vim.lsp.inlay_hint.enable fires
+-- a request before the server has finished its initial workspace
+-- check, so the server returns nothing and Neovim caches "no
+-- hints". We kick a refresh a moment later (toggle off→on) to
+-- coerce Neovim into re-requesting; by then the server has
+-- ``_last_result`` populated and returns real hints. The refresh
+-- becomes redundant once DimFort itself emits
+-- ``workspace/inlayHint/refresh`` after each check, but the
+-- belt-and-braces is cheap and works against older server builds.
 local function on_attach(args)
   local client = vim.lsp.get_client_by_id(args.data.client_id)
   if not client or client.name ~= "dimfort" then return end
   active_client_id = client.id
-  if vim.lsp.inlay_hint and vim.lsp.inlay_hint.enable then
-    pcall(vim.lsp.inlay_hint.enable,
-          M.config.inlay_hints_enabled,
-          { bufnr = args.buf })
+
+  -- Show "H001: Assignment unit mismatch: …" as end-of-line virtual
+  -- text. Scoped to DimFort's diagnostic namespace via the second
+  -- argument to vim.diagnostic.config, so it doesn't affect other
+  -- LSP servers the user might have running.
+  --
+  -- The config table replaces (does not merge with) the namespace's
+  -- prior render config — so we re-state ``signs`` and ``underline``
+  -- here, otherwise the gutter sign and squiggle vanish. The whole
+  -- call is wrapped in pcall so any failure here can't abort the
+  -- on_attach handler before the inlay-hint setup below runs.
+  local ok_ns, ns = pcall(vim.lsp.diagnostic.get_namespace, client.id)
+  if ok_ns and ns then
+    pcall(vim.diagnostic.config, {
+      signs = true,
+      underline = true,
+      virtual_text = {
+        spacing = 2,
+        format = function(d)
+          local code = d.code
+            or (d.user_data and d.user_data.lsp and d.user_data.lsp.code)
+          if code then
+            return string.format("%s: %s", code, d.message)
+          end
+          return d.message
+        end,
+      },
+      severity_sort = true,
+    }, ns)
+  end
+
+  if not (vim.lsp.inlay_hint and vim.lsp.inlay_hint.enable) then return end
+  pcall(vim.lsp.inlay_hint.enable,
+        M.config.inlay_hints_enabled,
+        { bufnr = args.buf })
+  if M.config.inlay_hints_enabled then
+    vim.defer_fn(function()
+      if vim.api.nvim_buf_is_valid(args.buf) then
+        pcall(vim.lsp.inlay_hint.enable, false, { bufnr = args.buf })
+        pcall(vim.lsp.inlay_hint.enable, true,  { bufnr = args.buf })
+      end
+    end, 800)
   end
 end
 
@@ -228,6 +276,21 @@ end
 --   require("dimfort").setup({ executable = "/path/to/dimfort" })
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", defaults, opts or {})
+
+  -- Muted slate fg + italic so inlay-hint ghost text reads as
+  -- annotation rather than code. We set ``ctermfg`` alongside the
+  -- truecolor ``fg`` so 256-color terminals (notably macOS
+  -- Terminal.app) get a sensible value rather than a poor
+  -- approximation of the hex. No ``default = true`` — stock
+  -- Neovim's ``LspInlayHint`` inherits from ``NonText`` or
+  -- ``Comment`` which on plain colorschemes can come out
+  -- visually identical to code, so we actively override. Users
+  -- who want custom styling can `:hi LspInlayHint …` after setup.
+  vim.api.nvim_set_hl(0, "LspInlayHint", {
+    fg = "#7c8499",
+    ctermfg = 245,
+    italic = true,
+  })
 
   vim.api.nvim_create_user_command("DimFortCheckWorkspace",
     function() M.check_workspace() end,
