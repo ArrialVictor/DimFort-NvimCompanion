@@ -1,4 +1,4 @@
-"""Generate the DimFort Vim/Neovim-companion branding assets.
+"""Generate the DimFort Neovim-companion branding assets.
 
 Run from the companion repo root:
     python scripts/make_icon.py
@@ -7,7 +7,7 @@ Produces, all into this repo:
     icon.png           — 256x256 square icon, rounded corners ([m·s⁻²])
     icon_alt.png       — alt icon, kg / m·s fraction motif
     social_preview.png — 1280x640 GitHub social-preview banner with
-                         the DimFort wordmark + "Vim/Neovim Companion"
+                         the DimFort wordmark + "Neovim Companion"
 
 The other companions (VSCode, Emacs) and the upstream DimFort repo
 each have their own copy of this generator. The palette and glyph
@@ -349,7 +349,7 @@ def main() -> None:
     print(f"wrote {icon_alt_path} ({icon_alt_path.stat().st_size} bytes)")
 
     _round_corners(
-        build_social("Vim/Neovim Companion"), SOCIAL_CORNER_RADIUS,
+        build_social("Neovim Companion"), SOCIAL_CORNER_RADIUS,
     ).save(social_path, "PNG", optimize=True)
     print(f"wrote {social_path} ({social_path.stat().st_size} bytes)")
 
