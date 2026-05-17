@@ -25,7 +25,7 @@ user commands; the heavy lifting is done by the `dimfort lsp` server.
 
 ```lua
 {
-  "ArrialVictor/DimFort-VimCompanion",
+  "ArrialVictor/DimFort-NvimCompanion",
   ft = "fortran",
   opts = {
     -- Override the executable if `dimfort` isn't on $PATH.
@@ -38,7 +38,7 @@ user commands; the heavy lifting is done by the `dimfort lsp` server.
 
 ```lua
 use {
-  "ArrialVictor/DimFort-VimCompanion",
+  "ArrialVictor/DimFort-NvimCompanion",
   ft = "fortran",
   config = function()
     require("dimfort").setup({})
@@ -51,8 +51,8 @@ use {
 Clone into your `runtimepath`:
 
 ```bash
-git clone https://github.com/ArrialVictor/DimFort-VimCompanion.git \
-  ~/.local/share/nvim/site/pack/dimfort/start/DimFort-VimCompanion
+git clone https://github.com/ArrialVictor/DimFort-NvimCompanion.git \
+  ~/.local/share/nvim/site/pack/dimfort/start/DimFort-NvimCompanion
 ```
 
 Then add to your `init.lua`:
