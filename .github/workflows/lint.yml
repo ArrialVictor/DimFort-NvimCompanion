@@ -1,0 +1,38 @@
+name: lint
+
+# Tag-gated for now (pre-public; private repos have limited CI
+# minutes). Once the repo is public, add a `pull_request:` trigger
+# and `push: branches: [main]`.
+#
+# A thin LSP client has very little runtime behaviour to test — so
+# this is lint-only. luacheck catches typos, undefined globals, and
+# unused locals that would otherwise surface as silent no-ops at
+# runtime.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install luacheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luarocks
+          sudo luarocks install luacheck
+
+      - name: Run luacheck
+        # Globals listed match the Neovim runtime + standard
+        # plugin idioms. `vim` is the entry point to the editor
+        # API; the rest are common script-level conveniences.
+        run: |
+          luacheck lua/ plugin/ \
+            --globals vim \
+            --no-max-line-length \
+            --codes
