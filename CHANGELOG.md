@@ -9,6 +9,18 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-05-19
+
+First public release. Install via your Neovim plugin manager
+pointing at this repository — there's nothing to download
+separately. Requires Neovim ≥ 0.11 and DimFort itself on PATH
+(`pipx install 'dimfort[lsp]'`).
+
+```lua
+-- lazy.nvim
+{ "ArrialVictor/DimFort-NvimCompanion", ft = { "fortran" } }
+```
+
 ### 2026-05-17
 
 - **Repo rename**: `DimFort-VimCompanion` → `DimFort-NvimCompanion`.
