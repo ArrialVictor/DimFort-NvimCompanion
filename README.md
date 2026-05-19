@@ -1,5 +1,7 @@
 # DimFort — Neovim companion
 
+![preview](social_preview.png)
+
 Neovim companion for [DimFort](https://github.com/ArrialVictor/DimFort) —
 the dimensional-homogeneity checker for Fortran. Thin LSP client +
 user commands; the heavy lifting is done by the `dimfort lsp` server.
