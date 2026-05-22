@@ -90,6 +90,14 @@ require("dimfort").setup({
   cache_mode = "off",                           -- "off" | "read-only" | "read-write"
   cache_dir  = "",                              -- "" = .dimfort-cache/ under workspace root
 
+  -- Side panel (off by default; :DimFortTogglePanel to open).
+  panel_enabled        = false,
+  panel_layout         = "both",                -- "both" | "expression" | "routine"
+  panel_position       = "right",               -- "right" | "left" | "bottom"
+  panel_width_fraction = 0.35,                  -- fraction of editor width
+  panel_width_cols     = nil,                   -- explicit cols; wins over fraction
+  panel_debounce_ms    = 200,                   -- cursor-follow debounce
+
   -- Workspace plumbing.
   max_workset_size = 40,                        -- cap on workset size
   external_modules = {},                        -- modules treated as known-out-of-workset
@@ -119,6 +127,29 @@ from your own autocommand or keymap.
 | `:DimFortToggleHoverSubroutineCalls`     | Cycle the subroutine-call hover detail.                             |
 | `:DimFortToggleHoverExpressions`         | Cycle the expression hover detail.                                  |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
+| `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
+| `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
+| `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
+
+## Side panel
+
+`:DimFortTogglePanel` opens a persistent split (right by default) that
+follows the cursor and shows two stacked sections:
+
+- **Expression** — the unit-algebra tree for the expression under the
+  cursor: each node with its resolved unit, the rule that produced it,
+  and a 🟢 / 🟡 / 🔴 marker, columns aligned. Same content as the
+  Detailed hover, but it stays visible while you edit — handy for
+  debugging a mismatch or talking through code with someone.
+- **Scope** — the declarations of every *enclosing* scope, stacked
+  outermost-first and indented by nesting (a module's declarations,
+  then a contained subroutine's locals). Each variable is marked 🟢
+  (annotated) or 🟡 (unannotated), so gaps in your annotation coverage
+  jump out.
+
+Off by default; opt in with `panel_enabled = true` or just run the
+toggle command. Width is fixed (the source window absorbs resize), set
+via `panel_width_cols` or `panel_width_fraction`.
 
 ## What you get
 
@@ -129,6 +160,7 @@ Same surface as the VSCode companion:
 - Hover (`K`) for variable units.
 - Inlay hints, code lens, go-to-definition, completion, code actions
   (toggleable).
+- The cursor-following **side panel** above.
 - Workspace-wide cross-file checks driven from `use` clauses.
 
 ## Notes

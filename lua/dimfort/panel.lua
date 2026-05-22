@@ -133,18 +133,23 @@ local function titlecase(s)
   return s:sub(1, 1):upper() .. s:sub(2)
 end
 
-local function render_scope_vars(scope, vars, rows)
+-- ``depth`` (0 = outermost) indents inner scopes so the nesting reads
+-- visually — a module-contained subroutine sits one level in from the
+-- module. Two spaces per level; depth rarely exceeds 1 (module →
+-- routine) so the horizontal cost is small.
+local function render_scope_vars(scope, vars, rows, depth)
+  local pad = string.rep("  ", depth or 0)
   if present(scope) then
     -- e.g. "Subroutine: driver", "Module: constants_mod".
-    table.insert(rows, string.format("%s: %s",
-                                     titlecase(scope.kind), scope.name))
+    table.insert(rows, pad .. string.format("%s: %s",
+                                            titlecase(scope.kind), scope.name))
   else
-    table.insert(rows, "Scope: (file level)")
+    table.insert(rows, pad .. "Scope: (file level)")
   end
   table.insert(rows, "")
   vars = (present(vars) and vars) or {}
   if #vars == 0 then
-    table.insert(rows, "  (no declarations)")
+    table.insert(rows, pad .. "  (no declarations)")
     return
   end
   -- Compute column widths over the *displayed* strings so the markers
@@ -155,17 +160,17 @@ local function render_scope_vars(scope, vars, rows)
     local shown_unit = present(v.unit) and v.unit or "(none)"
     unit_w = math.max(unit_w, #shown_unit)
   end
-  table.insert(rows, string.format("  %4s  %-" .. name_w .. "s  %-" ..
-                                   unit_w .. "s",
-                                   "line", "name", "unit"))
+  table.insert(rows, pad .. string.format("  %4s  %-" .. name_w .. "s  %-" ..
+                                          unit_w .. "s",
+                                          "line", "name", "unit"))
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
     -- Every row gets a marker: 🟢 annotated, 🟡 unannotated. Matches
     -- the expression-tree convention so the whole panel reads the same.
     local tail = v.kind == "unannotated" and " 🟡" or " 🟢"
-    table.insert(rows, string.format("  %4d  %-" .. name_w .. "s  %-" ..
-                                     unit_w .. "s%s",
-                                     v.line, v.name, unit, tail))
+    table.insert(rows, pad .. string.format("  %4d  %-" .. name_w .. "s  %-" ..
+                                            unit_w .. "s%s",
+                                            v.line, v.name, unit, tail))
   end
 end
 
@@ -193,14 +198,15 @@ local function render_payload(payload)
       -- environment hierarchy, not just the innermost frame.
       for i, sc in ipairs(payload.scopes) do
         if i > 1 then table.insert(rows, "") end
-        render_scope_vars(sc, sc.vars, rows)
+        -- i is 1-based; depth is 0 for the outermost scope.
+        render_scope_vars(sc, sc.vars, rows, i - 1)
       end
     elseif has_payload then
       -- Back-compat with older servers that only send a single scope.
       local scope = present(payload.scope) and payload.scope or payload.routine
       local scope_vars = present(payload.scopeVars) and payload.scopeVars
         or payload.routineVars
-      render_scope_vars(scope, scope_vars, rows)
+      render_scope_vars(scope, scope_vars, rows, 0)
     else
       table.insert(rows, "Scope: (none)")
     end
