@@ -69,17 +69,33 @@ All options shown with their defaults:
 
 ```lua
 require("dimfort").setup({
-  executable = "dimfort",            -- path to the dimfort binary
+  executable = "dimfort",                       -- path to the dimfort binary
+
+  -- Feature toggles. Each maps to a server initializationOption.
   inlay_hints_enabled = true,
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
-  code_lens_enabled = true,
-  max_workset_size = 40,             -- cap on workset size
-  external_modules = {},             -- modules treated as known-out-of-workset
-  filetypes = { "fortran" },         -- buffers DimFort attaches to
-  root_markers = { ".dimfort.toml", ".git" },
-  auto_attach = true,                -- attach via FileType autocmd
+  code_lens_enabled = false,                    -- opt-in; visually busy
+
+  -- Hover layout per surface. "short" = compact `name : unit` /
+  -- formal-vs-actual pairing; "detailed" = full unit-algebra rule
+  -- chain. See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
+  hover_function_calls   = "short",             -- "short" | "detailed"
+  hover_subroutine_calls = "short",
+  hover_expressions      = "short",
+  trace_hover_enabled    = false,               -- legacy master switch
+
+  -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
+  cache_mode = "off",                           -- "off" | "read-only" | "read-write"
+  cache_dir  = "",                              -- "" = .dimfort-cache/ under workspace root
+
+  -- Workspace plumbing.
+  max_workset_size = 40,                        -- cap on workset size
+  external_modules = {},                        -- modules treated as known-out-of-workset
+  filetypes        = { "fortran" },             -- buffers DimFort attaches to
+  root_markers     = { ".dimfort.toml", ".git" },
+  auto_attach      = true,                      -- attach via FileType autocmd
 })
 ```
 
@@ -88,16 +104,21 @@ from your own autocommand or keymap.
 
 ## Commands
 
-| Command                        | Effect                                              |
-|--------------------------------|-----------------------------------------------------|
-| `:DimFortCheckWorkspace`       | Run the workspace-wide unit check.                  |
-| `:DimFortRestart`              | Restart the language server.                        |
-| `:DimFortStatus`               | Print current feature toggles and client id.        |
-| `:DimFortToggleInlayHints`     | Toggle inlay hints; restarts the server.            |
-| `:DimFortToggleCompletion`     | Toggle unit-name completion; restarts the server.   |
-| `:DimFortToggleCodeActions`    | Toggle code actions; restarts the server.           |
-| `:DimFortToggleGotoDefinition` | Toggle go-to-definition; restarts the server.      |
-| `:DimFortToggleCodeLens`       | Toggle code lens; restarts the server.              |
+| Command                                  | Effect                                                              |
+|------------------------------------------|---------------------------------------------------------------------|
+| `:DimFortCheckWorkspace`                 | Run the workspace-wide unit check.                                  |
+| `:DimFortRestart`                        | Restart the language server.                                        |
+| `:DimFortStatus`                         | Print current feature toggles and client id.                        |
+| `:DimFortToggleInlayHints`               | Toggle inlay hints; restarts the server.                            |
+| `:DimFortToggleCompletion`               | Toggle unit-name completion; restarts the server.                   |
+| `:DimFortToggleCodeActions`              | Toggle code actions; restarts the server.                           |
+| `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
+| `:DimFortToggleCodeLens`                 | Toggle code lens; restarts the server.                              |
+| `:DimFortToggleTrace`                    | Toggle the legacy full-unit-trace hover master switch.              |
+| `:DimFortToggleHoverFunctionCalls`       | Cycle the function-call hover detail (Short ↔ Detailed).            |
+| `:DimFortToggleHoverSubroutineCalls`     | Cycle the subroutine-call hover detail.                             |
+| `:DimFortToggleHoverExpressions`         | Cycle the expression hover detail.                                  |
+| `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
 
 ## What you get
 
@@ -121,6 +142,10 @@ Same surface as the VSCode companion:
   inserts the snippet literally and places the cursor at the `$0`
   position; Neovim doesn't have full LSP snippet expansion built in,
   so tab-stops `${1:placeholder}` are flattened to their default text.
+- `dimfort.extractToParameter` (used by the H010 D1.5 "Extract literal
+  to PARAMETER" quick-fix) prompts via `vim.ui.input` — plug in
+  `dressing.nvim` or `snacks.nvim` for a nicer prompt UI than the
+  builtin one.
 
 ## License
 
