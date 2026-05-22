@@ -35,18 +35,22 @@ local M = {}
 ---@field auto_attach boolean                  -- attach automatically via FileType autocmd
 local defaults = {
   executable = "dimfort",
-  inlay_hints_enabled = true,
+  -- Default UX stance (2026-05-22): the side panel + detailed hover are
+  -- the primary surface, so inlay hints are OFF by default (redundant
+  -- noise next to the panel), the panel is ON, trace/detailed hover is
+  -- ON, and the (now correctness-verified) content-hash cache is ON.
+  inlay_hints_enabled = false,
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
   code_lens_enabled = false,         -- match VSCompanion's package.json default
-  trace_hover_enabled = false,
+  trace_hover_enabled = true,        -- detailed hover by default
   hover_function_calls = "short",
   hover_subroutine_calls = "short",
   hover_expressions = "short",
-  cache_mode = "off",
+  cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
-  panel_enabled = false,
+  panel_enabled = true,              -- open the side panel on attach
   panel_layout = "both",
   panel_position = "right",
   panel_width_fraction = 0.35,
