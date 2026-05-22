@@ -61,10 +61,11 @@ local function marker_for(node)
   return MARKER[present(node) and node.marker] or " "
 end
 
--- Recursively walk the expression tree and append lines to ``rows``.
--- ``prefix`` carries the in-progress tree-drawing chars; ``is_last``
--- determines whether to use ``└──`` vs ``├──``.
-local function render_expression(node, prefix, is_last, is_root, rows)
+-- Recursively collect tree entries as ``{left, mark, rule}`` records.
+-- ``left`` is the tree-drawing prefix + label + ``: unit`` portion;
+-- ``mark`` and ``rule`` are laid out in a right-hand column so the
+-- markers align vertically (see render_expression below).
+local function collect_expression(node, prefix, is_last, is_root, entries)
   if not present(node) then return end
   local connector
   local next_prefix
@@ -84,31 +85,50 @@ local function render_expression(node, prefix, is_last, is_root, rows)
   local rule = rule_id and (" (" .. rule_id .. ")") or ""
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
-  -- Statements like assignments don't have a unit; emit just
-  -- ``label  mark`` for them, no ``: ?``.
+  -- Statements (e.g. assignments) have no unit → no ``: unit`` part.
+  local left
   if has_unit then
-    table.insert(rows, string.format(
-      "%s%s%s : %s %s%s",
-      prefix, connector, label, unit, mark, rule
-    ))
+    left = prefix .. connector .. label .. " : " .. unit
   else
-    table.insert(rows, string.format(
-      "%s%s%s %s%s",
-      prefix, connector, label, mark, rule
-    ))
+    left = prefix .. connector .. label
   end
+  table.insert(entries, { left = left, mark = mark, rule = rule })
   local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
-    render_expression(c, next_prefix, i == #children, false, rows)
+    collect_expression(c, next_prefix, i == #children, false, entries)
   end
 end
 
-local function render_routine_vars(routine, vars, rows)
-  if present(routine) then
-    table.insert(rows, string.format("Routine: %s (%s)",
-                                     routine.name, routine.kind))
+-- Render the expression tree into ``rows`` with the 🟢/🟡/🔴 markers
+-- aligned in a right-hand column. Padding uses display width
+-- (``strdisplaywidth``) so multi-byte box-drawing chars and unit
+-- glyphs don't throw the alignment off.
+local function render_expression(node, rows)
+  local entries = {}
+  collect_expression(node, "", true, true, entries)
+  local max_w = 0
+  for _, e in ipairs(entries) do
+    max_w = math.max(max_w, vim.fn.strdisplaywidth(e.left))
+  end
+  for _, e in ipairs(entries) do
+    local pad = string.rep(" ", max_w - vim.fn.strdisplaywidth(e.left))
+    table.insert(rows, e.left .. pad .. "  " .. e.mark .. e.rule)
+  end
+end
+
+-- Capitalize the scope kind for the header (subroutine → Subroutine).
+local function titlecase(s)
+  if not s or s == "" then return s end
+  return s:sub(1, 1):upper() .. s:sub(2)
+end
+
+local function render_scope_vars(scope, vars, rows)
+  if present(scope) then
+    -- e.g. "Subroutine: driver", "Module: constants_mod".
+    table.insert(rows, string.format("%s: %s",
+                                     titlecase(scope.kind), scope.name))
   else
-    table.insert(rows, "Routine: (file scope)")
+    table.insert(rows, "Scope: (file level)")
   end
   table.insert(rows, "")
   vars = (present(vars) and vars) or {}
@@ -141,7 +161,7 @@ local function render_payload(payload)
     table.insert(rows, "Expression")
     table.insert(rows, "")
     if has_payload and present(payload.expression) then
-      render_expression(payload.expression, "", true, true, rows)
+      render_expression(payload.expression, rows)
     else
       table.insert(rows, "  (no expression at cursor)")
     end
@@ -153,9 +173,14 @@ local function render_payload(payload)
   end
   if M.config.layout == "both" or M.config.layout == "routine" then
     if has_payload then
-      render_routine_vars(payload.routine, payload.routineVars, rows)
+      -- Prefer the canonical scope fields; fall back to the routine
+      -- aliases for older server builds.
+      local scope = present(payload.scope) and payload.scope or payload.routine
+      local scope_vars = present(payload.scopeVars) and payload.scopeVars
+        or payload.routineVars
+      render_scope_vars(scope, scope_vars, rows)
     else
-      table.insert(rows, "Routine: (none)")
+      table.insert(rows, "Scope: (none)")
     end
   end
   return rows
