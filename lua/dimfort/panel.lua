@@ -78,15 +78,25 @@ local function render_expression(node, prefix, is_last, is_root, rows)
     connector = "├── "
     next_prefix = prefix .. "│   "
   end
-  local unit = present(node.unit) and node.unit or "?"
+  local has_unit = present(node.unit)
+  local unit = has_unit and node.unit or nil
   local rule_id = present(node.ruleId) and node.ruleId or nil
   local rule = rule_id and (" (" .. rule_id .. ")") or ""
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
-  table.insert(rows, string.format(
-    "%s%s%s : %s %s%s",
-    prefix, connector, label, unit, mark, rule
-  ))
+  -- Statements like assignments don't have a unit; emit just
+  -- ``label  mark`` for them, no ``: ?``.
+  if has_unit then
+    table.insert(rows, string.format(
+      "%s%s%s : %s %s%s",
+      prefix, connector, label, unit, mark, rule
+    ))
+  else
+    table.insert(rows, string.format(
+      "%s%s%s %s%s",
+      prefix, connector, label, mark, rule
+    ))
+  end
   local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
     render_expression(c, next_prefix, i == #children, false, rows)
