@@ -160,9 +160,6 @@ local function render_scope_vars(scope, vars, rows, depth)
     local shown_unit = present(v.unit) and v.unit or "(none)"
     unit_w = math.max(unit_w, #shown_unit)
   end
-  table.insert(rows, pad .. string.format("  %4s  %-" .. name_w .. "s  %-" ..
-                                          unit_w .. "s",
-                                          "line", "name", "unit"))
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
     -- Every row gets a marker: 🟢 annotated, 🟡 unannotated, 🔴 the
