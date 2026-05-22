@@ -72,7 +72,9 @@ require("dimfort").setup({
   executable = "dimfort",                       -- path to the dimfort binary
 
   -- Feature toggles. Each maps to a server initializationOption.
-  inlay_hints_enabled = true,
+  -- Default stance: the side panel + detailed hover are the primary
+  -- surface, so inlay hints are OFF (redundant beside the panel).
+  inlay_hints_enabled = false,
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
@@ -80,18 +82,19 @@ require("dimfort").setup({
 
   -- Hover layout per surface. "short" = compact `name : unit` /
   -- formal-vs-actual pairing; "detailed" = full unit-algebra rule
-  -- chain. See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
+  -- chain. trace_hover_enabled = true upgrades all surfaces to
+  -- detailed (the default). See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
   hover_function_calls   = "short",             -- "short" | "detailed"
   hover_subroutine_calls = "short",
   hover_expressions      = "short",
-  trace_hover_enabled    = false,               -- legacy master switch
+  trace_hover_enabled    = true,                -- detailed hover by default
 
   -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
-  cache_mode = "off",                           -- "off" | "read-only" | "read-write"
+  cache_mode = "read-write",                    -- "off" | "read-only" | "read-write"
   cache_dir  = "",                              -- "" = .dimfort-cache/ under workspace root
 
-  -- Side panel (off by default; :DimFortTogglePanel to open).
-  panel_enabled        = false,
+  -- Side panel (on by default; :DimFortTogglePanel to close).
+  panel_enabled        = true,
   panel_layout         = "both",                -- "both" | "expression" | "routine"
   panel_position       = "right",               -- "right" | "left" | "bottom"
   panel_width_fraction = 0.35,                  -- fraction of editor width

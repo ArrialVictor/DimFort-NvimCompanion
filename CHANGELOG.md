@@ -9,6 +9,13 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+### Changed
+
+- **Default UX stance.** Inlay hints now default **off** (redundant
+  beside the panel/hover), the side panel defaults **on**, detailed
+  hover (`trace_hover_enabled`) defaults **on**, and the content-hash
+  cache defaults to **read-write**. Override any of them in `setup{}`.
+
 ### Added
 
 - **Side panel** (`:DimFortTogglePanel`) — a persistent split showing
