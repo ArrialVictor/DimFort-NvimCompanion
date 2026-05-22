@@ -147,18 +147,22 @@ local function render_scope_vars(scope, vars, rows)
     table.insert(rows, "  (no declarations)")
     return
   end
-  -- Compute column widths.
+  -- Compute column widths over the *displayed* strings so the markers
+  -- line up — "(none)" for unannotated counts toward the unit width.
   local name_w, unit_w = 4, 4
   for _, v in ipairs(vars) do
     name_w = math.max(name_w, #v.name)
-    if present(v.unit) then unit_w = math.max(unit_w, #v.unit) end
+    local shown_unit = present(v.unit) and v.unit or "(none)"
+    unit_w = math.max(unit_w, #shown_unit)
   end
   table.insert(rows, string.format("  %4s  %-" .. name_w .. "s  %-" ..
                                    unit_w .. "s",
                                    "line", "name", "unit"))
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
-    local tail = v.kind == "unannotated" and " 🟡" or ""
+    -- Every row gets a marker: 🟢 annotated, 🟡 unannotated. Matches
+    -- the expression-tree convention so the whole panel reads the same.
+    local tail = v.kind == "unannotated" and " 🟡" or " 🟢"
     table.insert(rows, string.format("  %4d  %-" .. name_w .. "s  %-" ..
                                      unit_w .. "s%s",
                                      v.line, v.name, unit, tail))
