@@ -23,6 +23,11 @@ local M = {}
 ---@field hover_expressions DimFortHoverLevel
 ---@field cache_mode DimFortCacheMode
 ---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
+---@field panel_enabled boolean                -- open side panel on attach
+---@field panel_layout "both"|"expression"|"routine"
+---@field panel_position "right"|"left"|"bottom"
+---@field panel_width_fraction number          -- fraction of editor width
+---@field panel_debounce_ms integer            -- cursor-follow debounce
 ---@field max_workset_size integer
 ---@field external_modules string[]
 ---@field filetypes string[]                   -- buffers DimFort attaches to
@@ -30,17 +35,27 @@ local M = {}
 ---@field auto_attach boolean                  -- attach automatically via FileType autocmd
 local defaults = {
   executable = "dimfort",
-  inlay_hints_enabled = true,
+  -- Default UX stance (2026-05-22): the side panel + detailed hover are
+  -- the primary surface, so inlay hints are OFF by default (redundant
+  -- noise next to the panel), the panel is ON, trace/detailed hover is
+  -- ON, and the (now correctness-verified) content-hash cache is ON.
+  inlay_hints_enabled = false,
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
   code_lens_enabled = false,         -- match VSCompanion's package.json default
-  trace_hover_enabled = false,
+  trace_hover_enabled = true,        -- detailed hover by default
   hover_function_calls = "short",
   hover_subroutine_calls = "short",
   hover_expressions = "short",
-  cache_mode = "off",
+  cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
+  panel_enabled = true,              -- open the side panel on attach
+  panel_layout = "both",
+  panel_position = "right",
+  panel_width_fraction = 0.35,
+  panel_width_cols = nil,         -- if set (integer), wins over fraction
+  panel_debounce_ms = 200,
   max_workset_size = 40,
   external_modules = {},
   filetypes = { "fortran" },
@@ -469,6 +484,34 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortToggleCache",
     function() M.toggle_cache() end,
     { desc = "DimFort: toggle content-hash cache between off and read-write" })
+
+  -- Side panel — opt-in persistent split with the unit-algebra tree
+  -- and routine-vars table. Off by default; see
+  -- DimFort/docs/design/panel-info.md.
+  local panel = require("dimfort.panel")
+  panel.config.layout         = M.config.panel_layout
+  panel.config.position       = M.config.panel_position
+  panel.config.width_fraction = M.config.panel_width_fraction
+  panel.config.width_cols     = M.config.panel_width_cols
+  panel.config.debounce_ms    = M.config.panel_debounce_ms
+  panel.install_autocmds()
+  vim.api.nvim_create_user_command("DimFortTogglePanel",
+    function() panel.toggle() end,
+    { desc = "DimFort: open/close the side panel" })
+  vim.api.nvim_create_user_command("DimFortPanelLayout",
+    function(args) panel.set_layout(args.args) end,
+    {
+      nargs = 1,
+      complete = function() return { "both", "expression", "routine" } end,
+      desc = "DimFort: switch panel layout (both | expression | routine)",
+    })
+  vim.api.nvim_create_user_command("DimFortPanelRefresh",
+    function() panel.refresh() end,
+    { desc = "DimFort: force-refresh the side panel" })
+  if M.config.panel_enabled then
+    -- Open after the LSP attach has had time to settle.
+    vim.defer_fn(function() panel.open() end, 500)
+  end
 
   local group = vim.api.nvim_create_augroup("DimFort", { clear = true })
   vim.api.nvim_create_autocmd("LspAttach", {
