@@ -165,9 +165,17 @@ local function render_scope_vars(scope, vars, rows, depth)
                                           "line", "name", "unit"))
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
-    -- Every row gets a marker: 🟢 annotated, 🟡 unannotated. Matches
-    -- the expression-tree convention so the whole panel reads the same.
-    local tail = v.kind == "unannotated" and " 🟡" or " 🟢"
+    -- Every row gets a marker: 🟢 annotated, 🟡 unannotated, 🔴 the
+    -- annotation is present but failed to parse (U002). Matches the
+    -- expression-tree convention so the whole panel reads the same.
+    local tail
+    if v.kind == "unannotated" then
+      tail = " 🟡"
+    elseif v.kind == "error" then
+      tail = " 🔴"
+    else
+      tail = " 🟢"
+    end
     table.insert(rows, pad .. string.format("  %4d  %-" .. name_w .. "s  %-" ..
                                             unit_w .. "s%s",
                                             v.line, v.name, unit, tail))

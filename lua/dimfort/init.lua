@@ -35,10 +35,11 @@ local M = {}
 ---@field auto_attach boolean                  -- attach automatically via FileType autocmd
 local defaults = {
   executable = "dimfort",
-  -- Default UX stance (2026-05-22): the side panel + detailed hover are
-  -- the primary surface, so inlay hints are OFF by default (redundant
-  -- noise next to the panel), the panel is ON, trace/detailed hover is
-  -- ON, and the (now correctness-verified) content-hash cache is ON.
+  -- Default UX stance (2026-05-22): detailed hover is the primary
+  -- surface, so inlay hints are OFF by default (redundant noise), the
+  -- side panel is CLOSED by default (open it on demand), trace/detailed
+  -- hover is ON, and the (now correctness-verified) content-hash cache
+  -- is ON.
   inlay_hints_enabled = false,
   completion_enabled = true,
   code_actions_enabled = true,
@@ -50,7 +51,7 @@ local defaults = {
   hover_expressions = "short",
   cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
-  panel_enabled = true,              -- open the side panel on attach
+  panel_enabled = false,             -- panel closed on attach; open on demand
   panel_layout = "both",
   panel_position = "right",
   panel_width_fraction = 0.35,
