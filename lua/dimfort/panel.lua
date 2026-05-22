@@ -219,6 +219,12 @@ local function open_window()
   vim.api.nvim_win_set_option(state.win, "signcolumn", "no")
   vim.api.nvim_win_set_option(state.win, "wrap", false)
   vim.api.nvim_win_set_option(state.win, "cursorline", false)
+  -- Pin the panel width: when the terminal resizes (or another split
+  -- opens / closes), Neovim normally redistributes width across all
+  -- windows. ``winfixwidth`` exempts the panel from that, so its
+  -- columns stay constant and the source window absorbs all the
+  -- flex. Same effect as VSCode's locked sidebars.
+  vim.api.nvim_win_set_option(state.win, "winfixwidth", true)
   -- Drop back into the source window so the user keeps editing focus.
   if state.source_winid and vim.api.nvim_win_is_valid(state.source_winid) then
     vim.api.nvim_set_current_win(state.source_winid)
