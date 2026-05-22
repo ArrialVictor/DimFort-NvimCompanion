@@ -50,6 +50,7 @@ local defaults = {
   panel_layout = "both",
   panel_position = "right",
   panel_width_fraction = 0.35,
+  panel_width_cols = nil,         -- if set (integer), wins over fraction
   panel_debounce_ms = 200,
   max_workset_size = 40,
   external_modules = {},
@@ -487,6 +488,7 @@ function M.setup(opts)
   panel.config.layout         = M.config.panel_layout
   panel.config.position       = M.config.panel_position
   panel.config.width_fraction = M.config.panel_width_fraction
+  panel.config.width_cols     = M.config.panel_width_cols
   panel.config.debounce_ms    = M.config.panel_debounce_ms
   panel.install_autocmds()
   vim.api.nvim_create_user_command("DimFortTogglePanel",
