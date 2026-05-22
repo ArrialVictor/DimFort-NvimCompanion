@@ -23,6 +23,7 @@ M.config = {
   layout = "both",
   position = "right",
   width_fraction = 0.35,
+  width_cols = nil,          -- if set (integer), wins over width_fraction
   debounce_ms = 200,
 }
 
@@ -185,8 +186,16 @@ end
 local function open_window()
   ensure_buffer()
   local total = vim.o.columns
-  local width = math.max(40, math.min(80,
-                                       math.floor(total * M.config.width_fraction)))
+  local width
+  if type(M.config.width_cols) == "number" and M.config.width_cols > 0 then
+    -- Explicit column count wins. Still clamped to leave at least 30
+    -- columns for the source window.
+    width = math.min(math.floor(M.config.width_cols),
+                     math.max(30, total - 30))
+  else
+    width = math.max(40, math.min(80,
+                                   math.floor(total * M.config.width_fraction)))
+  end
   local cmd
   if M.config.position == "left" then
     cmd = "topleft " .. width .. "vnew"
