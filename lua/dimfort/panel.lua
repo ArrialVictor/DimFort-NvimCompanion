@@ -61,10 +61,10 @@ local function marker_for(node)
   return MARKER[present(node) and node.marker] or " "
 end
 
--- Recursively collect tree entries as ``{left, mark, rule}`` records.
--- ``left`` is the tree-drawing prefix + label + ``: unit`` portion;
--- ``mark`` and ``rule`` are laid out in a right-hand column so the
--- markers align vertically (see render_expression below).
+-- Recursively collect tree entries as ``{tree, unit, mark, rule}``
+-- records. ``tree`` is the tree-drawing prefix + label; ``unit`` is
+-- the unit string (or nil for statements). Kept separate so the
+-- renderer can align both the ``: unit`` column and the marker column.
 local function collect_expression(node, prefix, is_last, is_root, entries)
   if not present(node) then return end
   local connector
@@ -80,39 +80,50 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
     next_prefix = prefix .. "│   "
   end
   local has_unit = present(node.unit)
-  local unit = has_unit and node.unit or nil
   local rule_id = present(node.ruleId) and node.ruleId or nil
   local rule = rule_id and (" (" .. rule_id .. ")") or ""
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
-  -- Statements (e.g. assignments) have no unit → no ``: unit`` part.
-  local left
-  if has_unit then
-    left = prefix .. connector .. label .. " : " .. unit
-  else
-    left = prefix .. connector .. label
-  end
-  table.insert(entries, { left = left, mark = mark, rule = rule })
+  table.insert(entries, {
+    tree = prefix .. connector .. label,
+    unit = has_unit and node.unit or nil,
+    mark = mark,
+    rule = rule,
+  })
   local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
     collect_expression(c, next_prefix, i == #children, false, entries)
   end
 end
 
--- Render the expression tree into ``rows`` with the 🟢/🟡/🔴 markers
--- aligned in a right-hand column. Padding uses display width
--- (``strdisplaywidth``) so multi-byte box-drawing chars and unit
--- glyphs don't throw the alignment off.
+-- Render the expression tree into ``rows`` with two aligned columns:
+-- the ``: unit`` block and the 🟢/🟡/🔴 marker. Padding uses display
+-- width (``strdisplaywidth``) so multi-byte box-drawing chars and unit
+-- glyphs don't throw the alignment off. Statement rows (no unit) leave
+-- the unit column blank but still align their markers.
 local function render_expression(node, rows)
   local entries = {}
   collect_expression(node, "", true, true, entries)
-  local max_w = 0
+  -- Column 1: the tree-label width. Column 2: the unit width.
+  local tree_w, unit_w = 0, 0
   for _, e in ipairs(entries) do
-    max_w = math.max(max_w, vim.fn.strdisplaywidth(e.left))
+    tree_w = math.max(tree_w, vim.fn.strdisplaywidth(e.tree))
+    if e.unit then unit_w = math.max(unit_w, vim.fn.strdisplaywidth(e.unit)) end
   end
   for _, e in ipairs(entries) do
-    local pad = string.rep(" ", max_w - vim.fn.strdisplaywidth(e.left))
-    table.insert(rows, e.left .. pad .. "  " .. e.mark .. e.rule)
+    local tree_pad = string.rep(" ", tree_w - vim.fn.strdisplaywidth(e.tree))
+    local mid
+    if e.unit then
+      local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(e.unit))
+      mid = " : " .. e.unit .. unit_pad
+    elseif unit_w > 0 then
+      -- No unit on this row, but other rows have one — pad the whole
+      -- ``: unit`` block with spaces so the marker still lines up.
+      mid = string.rep(" ", 3 + unit_w)
+    else
+      mid = ""
+    end
+    table.insert(rows, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.rule)
   end
 end
 
@@ -172,9 +183,16 @@ local function render_payload(payload)
     table.insert(rows, "")
   end
   if M.config.layout == "both" or M.config.layout == "routine" then
-    if has_payload then
-      -- Prefer the canonical scope fields; fall back to the routine
-      -- aliases for older server builds.
+    if has_payload and present(payload.scopes) and #payload.scopes > 0 then
+      -- Stack one section per enclosing scope, outermost first
+      -- (e.g. Module then Subroutine), so the user sees the whole
+      -- environment hierarchy, not just the innermost frame.
+      for i, sc in ipairs(payload.scopes) do
+        if i > 1 then table.insert(rows, "") end
+        render_scope_vars(sc, sc.vars, rows)
+      end
+    elseif has_payload then
+      -- Back-compat with older servers that only send a single scope.
       local scope = present(payload.scope) and payload.scope or payload.routine
       local scope_vars = present(payload.scopeVars) and payload.scopeVars
         or payload.routineVars
