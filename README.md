@@ -78,7 +78,6 @@ require("dimfort").setup({
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
-  code_lens_enabled = false,                    -- opt-in; visually busy
 
   -- Hover layout per surface. "short" = compact `name : unit` /
   -- formal-vs-actual pairing; "detailed" = full unit-algebra rule
@@ -124,7 +123,6 @@ from your own autocommand or keymap.
 | `:DimFortToggleCompletion`               | Toggle unit-name completion; restarts the server.                   |
 | `:DimFortToggleCodeActions`              | Toggle code actions; restarts the server.                           |
 | `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
-| `:DimFortToggleCodeLens`                 | Toggle code lens; restarts the server.                              |
 | `:DimFortToggleTrace`                    | Toggle the legacy full-unit-trace hover master switch.              |
 | `:DimFortToggleHoverFunctionCalls`       | Cycle the function-call hover detail (Short ↔ Detailed).            |
 | `:DimFortToggleHoverSubroutineCalls`     | Cycle the subroutine-call hover detail.                             |
@@ -150,9 +148,10 @@ follows the cursor and shows two stacked sections:
   (annotated) or 🟡 (unannotated), so gaps in your annotation coverage
   jump out.
 
-Off by default; opt in with `panel_enabled = true` or just run the
-toggle command. Width is fixed (the source window absorbs resize), set
-via `panel_width_cols` or `panel_width_fraction`.
+On by default (opens on attach); set `panel_enabled = false` to keep it
+closed and open it on demand with the toggle command. Width is fixed
+(the source window absorbs resize), set via `panel_width_cols` or
+`panel_width_fraction`.
 
 ## What you get
 
@@ -161,8 +160,7 @@ Same surface as the VSCode companion:
 - Diagnostics (H001–H004, U001/U002/U005–U007/U010, …) per file in the
   loclist / quickfix / `vim.diagnostic` panel.
 - Hover (`K`) for variable units.
-- Inlay hints, code lens, go-to-definition, completion, code actions
-  (toggleable).
+- Inlay hints, go-to-definition, completion, code actions (toggleable).
 - The cursor-following **side panel** above.
 - Workspace-wide cross-file checks driven from `use` clauses.
 
