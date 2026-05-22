@@ -9,6 +9,25 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+### Added
+
+- **Side panel** (`:DimFortTogglePanel`) — a persistent split showing
+  two stacked sections, cursor-following with a debounce:
+  - **Expression** — the unit-algebra tree for the expression under
+    the cursor (the same content as the Detailed hover, but it stays
+    put while you edit). Markers and units align in columns.
+  - **Scope** — the declarations of every *enclosing* scope, stacked
+    outermost-first and indented by nesting depth (e.g. a module's
+    declarations, then a contained subroutine's locals). Each row is
+    marked 🟢 (annotated) or 🟡 (unannotated). Driven by the new
+    `dimfort/panelInfo` LSP request.
+  - Settings: `panel_enabled` (default `false`), `panel_layout`
+    (`both` / `expression` / `routine`), `panel_position`
+    (`right` / `left` / `bottom`), `panel_width_fraction` /
+    `panel_width_cols`, `panel_debounce_ms`.
+  - Commands: `:DimFortTogglePanel`, `:DimFortPanelLayout {kind}`,
+    `:DimFortPanelRefresh`.
+
 ## [0.1.1] — 2026-05-22
 
 Feature-parity with the VSCode companion 0.1.3. All settings that
