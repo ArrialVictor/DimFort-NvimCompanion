@@ -200,6 +200,20 @@ local function open_window()
   vim.cmd(cmd)
   vim.api.nvim_win_set_buf(0, state.buf)
   state.win = vim.api.nvim_get_current_win()
+  -- ``botright`` is supposed to put the new window at the rightmost
+  -- (or bottom-most) edge, but with mixed splits it sometimes lands
+  -- in the middle. ``wincmd L`` (or ``J`` for bottom) explicitly moves
+  -- the current window to the far edge, idempotent if it's already
+  -- there. Re-set the width afterwards because the move can reset it.
+  if M.config.position == "right" then
+    vim.cmd("wincmd L")
+    vim.cmd("vertical resize " .. width)
+  elseif M.config.position == "left" then
+    vim.cmd("wincmd H")
+    vim.cmd("vertical resize " .. width)
+  elseif M.config.position == "bottom" then
+    vim.cmd("wincmd J")
+  end
   vim.api.nvim_win_set_option(state.win, "number", false)
   vim.api.nvim_win_set_option(state.win, "relativenumber", false)
   vim.api.nvim_win_set_option(state.win, "signcolumn", "no")
