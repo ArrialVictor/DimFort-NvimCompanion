@@ -122,30 +122,34 @@ local function handle_insert_snippet(args)
   local bufnr = vim.uri_to_bufnr(uri)
   vim.fn.bufload(bufnr)
 
-  -- Strip `${N}` and `${N:default}` placeholders, capturing where the
-  -- final cursor (`$0` or `${0}`) lands so we can move there after.
-  local cursor_offset = nil
-  local plain = snippet
-    :gsub("%${0}", function()
-      cursor_offset = 0
-      return ""
-    end)
-    :gsub("%$0", function()
-      cursor_offset = 0
-      return ""
-    end)
+  -- Mark the final-cursor placeholder (`$0` / `${0}`) with a sentinel
+  -- before stripping the other placeholders, so we can recover its
+  -- position in the plain text and place the cursor exactly there
+  -- (between the braces of `@unit{}`), not at the end of the line.
+  local SENTINEL = "\1"
+  local marked = snippet
+    :gsub("%${0}", SENTINEL)
+    :gsub("%$0", SENTINEL)
     :gsub("%${%d+:([^}]*)}", "%1")
     :gsub("%${%d+}", "")
+  local sidx = marked:find(SENTINEL, 1, true)   -- 1-based byte index, or nil
+  local plain = marked:gsub(SENTINEL, "")
 
   local lines = vim.split(plain, "\n", { plain = true })
   vim.api.nvim_buf_set_text(bufnr, line, character, line, character, lines)
 
-  -- Show the buffer and move the cursor if the snippet had a `$0`.
+  -- Show the buffer and move the cursor to where the `$0` sat.
   vim.api.nvim_set_current_buf(bufnr)
-  if cursor_offset and #lines > 0 then
-    local last = lines[#lines]
-    local target_line = line + #lines - 1
-    local target_col = (#lines == 1) and (character + #last) or #last
+  if sidx then
+    -- ``before`` is the text preceding the sentinel (== the plain text
+    -- preceding the cursor, since the sentinel is one byte). Count the
+    -- newlines in it for the row, and the bytes after the last newline
+    -- for the 0-based column.
+    local before = marked:sub(1, sidx - 1)
+    local nl = select(2, before:gsub("\n", ""))
+    local on_line = before:match("[^\n]*$") or ""
+    local target_line = line + nl
+    local target_col = (nl == 0) and (character + #on_line) or #on_line
     pcall(vim.api.nvim_win_set_cursor, 0, { target_line + 1, target_col })
   end
 end
