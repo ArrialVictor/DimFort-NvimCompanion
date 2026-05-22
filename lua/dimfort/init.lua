@@ -7,6 +7,9 @@
 
 local M = {}
 
+---@alias DimFortHoverLevel "short"|"detailed"
+---@alias DimFortCacheMode "off"|"read-only"|"read-write"
+
 ---@class DimFortConfig
 ---@field executable string                    -- path to the `dimfort` binary
 ---@field inlay_hints_enabled boolean
@@ -14,6 +17,12 @@ local M = {}
 ---@field code_actions_enabled boolean
 ---@field goto_definition_enabled boolean
 ---@field code_lens_enabled boolean
+---@field trace_hover_enabled boolean          -- legacy master switch (upgrades hover surfaces to Detailed)
+---@field hover_function_calls DimFortHoverLevel
+---@field hover_subroutine_calls DimFortHoverLevel
+---@field hover_expressions DimFortHoverLevel
+---@field cache_mode DimFortCacheMode
+---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
 ---@field max_workset_size integer
 ---@field external_modules string[]
 ---@field filetypes string[]                   -- buffers DimFort attaches to
@@ -25,7 +34,13 @@ local defaults = {
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
-  code_lens_enabled = true,
+  code_lens_enabled = false,         -- match VSCompanion's package.json default
+  trace_hover_enabled = false,
+  hover_function_calls = "short",
+  hover_subroutine_calls = "short",
+  hover_expressions = "short",
+  cache_mode = "off",
+  cache_dir = "",
   max_workset_size = 40,
   external_modules = {},
   filetypes = { "fortran" },
@@ -42,16 +57,29 @@ M.config = vim.deepcopy(defaults)
 local active_client_id = nil
 
 -- Internal: builds the initializationOptions table the server expects.
+-- Mirrors the field set the VSCompanion sends so the two clients
+-- present an identical surface to the server.
 local function init_options()
-  return {
+  local opts = {
     inlayHintsEnabled = M.config.inlay_hints_enabled,
     completionEnabled = M.config.completion_enabled,
     codeActionsEnabled = M.config.code_actions_enabled,
     gotoDefinitionEnabled = M.config.goto_definition_enabled,
     codeLensEnabled = M.config.code_lens_enabled,
+    traceHoverEnabled = M.config.trace_hover_enabled,
+    hoverFunctionCalls = M.config.hover_function_calls,
+    hoverSubroutineCalls = M.config.hover_subroutine_calls,
+    hoverExpressions = M.config.hover_expressions,
     maxWorksetSize = M.config.max_workset_size,
     externalModules = M.config.external_modules,
+    cacheMode = M.config.cache_mode,
   }
+  -- Only forward cacheDir if the user set one; an empty string would
+  -- shadow the server's default-cache-dir fallback.
+  if M.config.cache_dir and M.config.cache_dir ~= "" then
+    opts.cacheDir = M.config.cache_dir
+  end
+  return opts
 end
 
 -- Resolve the workspace root from any of the configured markers, or
@@ -109,6 +137,71 @@ local function handle_insert_snippet(args)
   end
 end
 
+-- Handle the H010 D1.5 "Extract literal to a named PARAMETER" quick-fix.
+-- Server-side payload mirrors what the VSCompanion handles: prompt the
+-- user for a name, validate it, then apply the two-edit refactor
+-- (insert a typed PARAMETER decl at the end of the enclosing routine's
+-- decl block + replace the literal at the use site).
+local function handle_extract_to_parameter(args)
+  local uri          = args[1]
+  local range_start  = args[2]
+  local range_end    = args[3]
+  local insert_line  = args[4]
+  local indent       = args[5]
+  local literal_text = args[6]
+  local target_unit  = args[7]
+  local default_name = args[8]
+
+  local prompt = string.format(
+    "Parameter name for %s (%s): ", literal_text, target_unit
+  )
+
+  -- vim.ui.input gives plugin overlays (e.g. dressing.nvim, snacks.nvim)
+  -- a chance to render a nice prompt; falls back to the builtin input
+  -- otherwise. Async callback model.
+  vim.ui.input({
+    prompt = prompt,
+    default = default_name,
+  }, function(name)
+    if not name or name == "" then return end  -- cancelled
+    if not name:match("^[A-Za-z][A-Za-z0-9_]*$") then
+      vim.notify(
+        "DimFort: invalid Fortran identifier — must start with a letter, "
+        .. "then letters/digits/_",
+        vim.log.levels.ERROR
+      )
+      return
+    end
+
+    local decl_line = string.format(
+      "%sreal, parameter :: %s = %s   !< @unit{%s}\n",
+      indent, name, literal_text, target_unit
+    )
+    local edit = {
+      changes = {
+        [uri] = {
+          {
+            range = {
+              ["start"] = { line = insert_line, character = 0 },
+              ["end"]   = { line = insert_line, character = 0 },
+            },
+            newText = decl_line,
+          },
+          {
+            range = {
+              ["start"] = range_start,
+              ["end"]   = range_end,
+            },
+            newText = name,
+          },
+        },
+      },
+    }
+    -- Neovim 0.11+ accepts the position-encoding hint as third arg.
+    vim.lsp.util.apply_workspace_edit(edit, "utf-16")
+  end)
+end
+
 -- Build the vim.lsp.start config for a given buffer.
 local function client_config(bufnr)
   return {
@@ -120,6 +213,9 @@ local function client_config(bufnr)
     commands = {
       ["dimfort.insertSnippet"] = function(cmd)
         handle_insert_snippet(cmd.arguments or {})
+      end,
+      ["dimfort.extractToParameter"] = function(cmd)
+        handle_extract_to_parameter(cmd.arguments or {})
       end,
     },
   }
@@ -181,11 +277,51 @@ local function toggle(key, label)
   M.restart()
 end
 
+-- Cycle an enum-valued setting through ``values`` and restart. Used
+-- for the hover Short ↔ Detailed and cache off ↔ read-write toggles.
+local function cycle(key, label, values)
+  local current = M.config[key]
+  local idx = 1
+  for i, v in ipairs(values) do
+    if v == current then idx = i break end
+  end
+  local next_v = values[(idx % #values) + 1]
+  M.config[key] = next_v
+  vim.notify(
+    string.format("DimFort: %s → %s", label, next_v),
+    vim.log.levels.INFO
+  )
+  M.restart()
+end
+
 M.toggle_inlay_hints      = function() toggle("inlay_hints_enabled",      "inlay hints")        end
 M.toggle_completion       = function() toggle("completion_enabled",       "unit completion")    end
 M.toggle_code_actions     = function() toggle("code_actions_enabled",     "code actions")       end
 M.toggle_goto_definition  = function() toggle("goto_definition_enabled",  "go-to-definition")   end
 M.toggle_code_lens        = function() toggle("code_lens_enabled",        "code lens")          end
+M.toggle_trace            = function() toggle("trace_hover_enabled",      "full unit trace")    end
+
+-- Per-surface hover detail level. Short = compact `name : unit` /
+-- formal-vs-actual pairing; Detailed = full unit-algebra rule-chain
+-- tree. See DimFort's docs/hover-ui.md.
+M.toggle_hover_function_calls = function()
+  cycle("hover_function_calls", "hover (function calls)", { "short", "detailed" })
+end
+M.toggle_hover_subroutine_calls = function()
+  cycle("hover_subroutine_calls", "hover (subroutine calls)", { "short", "detailed" })
+end
+M.toggle_hover_expressions = function()
+  cycle("hover_expressions", "hover (expressions)", { "short", "detailed" })
+end
+
+-- Content-hash cache toggle flips between the two useful modes (off
+-- and read-write). The middle "read-only" mode is reachable via
+-- :lua require('dimfort').config.cache_mode = "read-only" + restart,
+-- since the binary-toggle ergonomics from the palette aren't useful
+-- for that mid-state.
+M.toggle_cache = function()
+  cycle("cache_mode", "cache", { "off", "read-write" })
+end
 
 -- Print the current feature flags + client state. Bound to
 -- :DimFortStatus, so users don't have to count toggles to figure out
@@ -194,17 +330,24 @@ function M.status()
   local function flag(v) return v and "on" or "off" end
   local lines = {
     "DimFort status",
-    string.format("  executable        : %s", M.config.executable),
-    string.format("  inlay hints       : %s", flag(M.config.inlay_hints_enabled)),
-    string.format("  completion        : %s", flag(M.config.completion_enabled)),
-    string.format("  code actions      : %s", flag(M.config.code_actions_enabled)),
-    string.format("  go-to-definition  : %s", flag(M.config.goto_definition_enabled)),
-    string.format("  code lens         : %s", flag(M.config.code_lens_enabled)),
-    string.format("  max workset size  : %d", M.config.max_workset_size),
-    string.format("  external modules  : %s",
+    string.format("  executable          : %s", M.config.executable),
+    string.format("  inlay hints         : %s", flag(M.config.inlay_hints_enabled)),
+    string.format("  completion          : %s", flag(M.config.completion_enabled)),
+    string.format("  code actions        : %s", flag(M.config.code_actions_enabled)),
+    string.format("  go-to-definition    : %s", flag(M.config.goto_definition_enabled)),
+    string.format("  code lens           : %s", flag(M.config.code_lens_enabled)),
+    string.format("  full unit trace     : %s", flag(M.config.trace_hover_enabled)),
+    string.format("  hover (functions)   : %s", M.config.hover_function_calls),
+    string.format("  hover (subroutines) : %s", M.config.hover_subroutine_calls),
+    string.format("  hover (expressions) : %s", M.config.hover_expressions),
+    string.format("  cache               : %s", M.config.cache_mode),
+    string.format("  cache dir           : %s",
+                  (M.config.cache_dir == "") and "(default)" or M.config.cache_dir),
+    string.format("  max workset size    : %d", M.config.max_workset_size),
+    string.format("  external modules    : %s",
                   (next(M.config.external_modules) == nil) and "(none)"
                   or table.concat(M.config.external_modules, ", ")),
-    string.format("  active client id  : %s", tostring(active_client_id or "(none)")),
+    string.format("  active client id    : %s", tostring(active_client_id or "(none)")),
   }
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
@@ -311,6 +454,21 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortToggleCodeLens",
     function() M.toggle_code_lens() end,
     { desc = "DimFort: toggle code lens" })
+  vim.api.nvim_create_user_command("DimFortToggleTrace",
+    function() M.toggle_trace() end,
+    { desc = "DimFort: toggle full unit trace in hover" })
+  vim.api.nvim_create_user_command("DimFortToggleHoverFunctionCalls",
+    function() M.toggle_hover_function_calls() end,
+    { desc = "DimFort: cycle hover detail level for function calls" })
+  vim.api.nvim_create_user_command("DimFortToggleHoverSubroutineCalls",
+    function() M.toggle_hover_subroutine_calls() end,
+    { desc = "DimFort: cycle hover detail level for subroutine calls" })
+  vim.api.nvim_create_user_command("DimFortToggleHoverExpressions",
+    function() M.toggle_hover_expressions() end,
+    { desc = "DimFort: cycle hover detail level for expressions" })
+  vim.api.nvim_create_user_command("DimFortToggleCache",
+    function() M.toggle_cache() end,
+    { desc = "DimFort: toggle content-hash cache between off and read-write" })
 
   local group = vim.api.nvim_create_augroup("DimFort", { clear = true })
   vim.api.nvim_create_autocmd("LspAttach", {

@@ -9,6 +9,54 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-22
+
+Feature-parity with the VSCode companion 0.1.3. All settings that
+the VSCompanion forwards as `initializationOptions` are now mirrored
+here as Lua config options + restart-on-change toggles.
+
+### Added
+
+- **`cache_mode` setting** — content-hash cache for the workspace
+  check: `"off"` (default), `"read-only"`, or `"read-write"`. With
+  `"read-write"`, warm re-runs replay cached diagnostics for
+  unchanged files (LMDZ-scale: ~33 s cold → ~20 s warm).
+- **`cache_dir` setting** — optional cache directory override.
+  Empty (default) lets the server use `.dimfort-cache/` under the
+  workspace root.
+- **`:DimFortToggleCache` command** — flips `cache_mode` between
+  `"off"` and `"read-write"` and restarts the server.
+
+- **Per-surface hover settings** — three independent Lua options:
+  - `hover_function_calls = "short" | "detailed"`
+  - `hover_subroutine_calls = "short" | "detailed"`
+  - `hover_expressions = "short" | "detailed"`
+
+  Each governs the corresponding hover layout. `Short` keeps the
+  compact `name : unit` / formal-vs-actual view; `Detailed`
+  expands to the full unit-algebra rule-chain tree.
+- **`:DimFortToggleHoverFunctionCalls`, `:DimFortToggleHoverSubroutineCalls`,
+  `:DimFortToggleHoverExpressions`** — cycle each setting through
+  Short ↔ Detailed.
+
+- **`trace_hover_enabled` setting** + **`:DimFortToggleTrace`
+  command** — legacy master switch that upgrades all hover
+  surfaces still on `"short"` to `"detailed"`. Per-surface
+  settings still win.
+
+- **`dimfort.extractToParameter` command handler** — the H010 D1.5
+  "Extract literal to named PARAMETER" quick-fix now works in
+  Neovim. The plugin prompts via `vim.ui.input` (so dressing /
+  snacks overlays work), validates the Fortran identifier, then
+  applies the two-edit refactor via `vim.lsp.util.apply_workspace_edit`.
+
+### Changed
+
+- `code_lens_enabled` default flipped from `true` to `false`,
+  matching the VSCompanion. Code lens is opt-in via
+  `:DimFortToggleCodeLens` or `setup({ code_lens_enabled = true })`.
+- `:DimFortStatus` output extended with the new fields.
+
 ## [0.1.0] — 2026-05-19
 
 First public release. Install via your Neovim plugin manager
