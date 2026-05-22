@@ -48,15 +48,23 @@ local DIVIDER = string.rep("─", 60)
 
 local MARKER = { ok = "🟢", warn = "🟡", error = "🔴" }
 
+-- Neovim deserializes JSON ``null`` to ``vim.NIL`` — a userdata value
+-- that's NOT equal to Lua ``nil`` and IS truthy. Every field we read
+-- off an LSP response must be guarded against it, otherwise indexing
+-- explodes with "attempt to index a userdata value".
+local function present(v)
+  return v ~= nil and v ~= vim.NIL
+end
+
 local function marker_for(node)
-  return MARKER[node and node.marker] or " "
+  return MARKER[present(node) and node.marker] or " "
 end
 
 -- Recursively walk the expression tree and append lines to ``rows``.
 -- ``prefix`` carries the in-progress tree-drawing chars; ``is_last``
 -- determines whether to use ``└──`` vs ``├──``.
 local function render_expression(node, prefix, is_last, is_root, rows)
-  if node == nil then return end
+  if not present(node) then return end
   local connector
   local next_prefix
   if is_root then
@@ -69,28 +77,30 @@ local function render_expression(node, prefix, is_last, is_root, rows)
     connector = "├── "
     next_prefix = prefix .. "│   "
   end
-  local unit = node.unit or "?"
-  local rule = node.ruleId and (" (" .. node.ruleId .. ")") or ""
+  local unit = present(node.unit) and node.unit or "?"
+  local rule_id = present(node.ruleId) and node.ruleId or nil
+  local rule = rule_id and (" (" .. rule_id .. ")") or ""
   local mark = marker_for(node)
-  local label = node.label or "?"
+  local label = present(node.label) and node.label or "?"
   table.insert(rows, string.format(
     "%s%s%s : %s %s%s",
     prefix, connector, label, unit, mark, rule
   ))
-  local children = node.children or {}
+  local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
     render_expression(c, next_prefix, i == #children, false, rows)
   end
 end
 
 local function render_routine_vars(routine, vars, rows)
-  if routine ~= nil then
+  if present(routine) then
     table.insert(rows, string.format("Routine: %s (%s)",
                                      routine.name, routine.kind))
   else
     table.insert(rows, "Routine: (file scope)")
   end
   table.insert(rows, "")
+  vars = (present(vars) and vars) or {}
   if #vars == 0 then
     table.insert(rows, "  (no declarations)")
     return
@@ -99,13 +109,13 @@ local function render_routine_vars(routine, vars, rows)
   local name_w, unit_w = 4, 4
   for _, v in ipairs(vars) do
     name_w = math.max(name_w, #v.name)
-    if v.unit then unit_w = math.max(unit_w, #v.unit) end
+    if present(v.unit) then unit_w = math.max(unit_w, #v.unit) end
   end
   table.insert(rows, string.format("  %4s  %-" .. name_w .. "s  %-" ..
                                    unit_w .. "s",
                                    "line", "name", "unit"))
   for _, v in ipairs(vars) do
-    local unit = v.unit or "(none)"
+    local unit = present(v.unit) and v.unit or "(none)"
     local tail = v.kind == "unannotated" and " 🟡" or ""
     table.insert(rows, string.format("  %4d  %-" .. name_w .. "s  %-" ..
                                      unit_w .. "s%s",
@@ -115,10 +125,11 @@ end
 
 local function render_payload(payload)
   local rows = {}
+  local has_payload = present(payload)
   if M.config.layout == "both" or M.config.layout == "expression" then
     table.insert(rows, "Expression")
     table.insert(rows, "")
-    if payload and payload.expression then
+    if has_payload and present(payload.expression) then
       render_expression(payload.expression, "", true, true, rows)
     else
       table.insert(rows, "  (no expression at cursor)")
@@ -130,8 +141,8 @@ local function render_payload(payload)
     table.insert(rows, "")
   end
   if M.config.layout == "both" or M.config.layout == "routine" then
-    if payload then
-      render_routine_vars(payload.routine, payload.routineVars or {}, rows)
+    if has_payload then
+      render_routine_vars(payload.routine, payload.routineVars, rows)
     else
       table.insert(rows, "Routine: (none)")
     end
