@@ -7,7 +7,6 @@
 
 local M = {}
 
----@alias DimFortHoverLevel "short"|"detailed"
 ---@alias DimFortCacheMode "off"|"read-only"|"read-write"
 
 ---@class DimFortConfig
@@ -16,10 +15,7 @@ local M = {}
 ---@field completion_enabled boolean
 ---@field code_actions_enabled boolean
 ---@field goto_definition_enabled boolean
----@field trace_hover_enabled boolean          -- legacy master switch (upgrades hover surfaces to Detailed)
----@field hover_function_calls DimFortHoverLevel
----@field hover_subroutine_calls DimFortHoverLevel
----@field hover_expressions DimFortHoverLevel
+---@field hover "disabled"|"short"|"detailed"  -- hover verbosity (panel unaffected)
 ---@field cache_mode DimFortCacheMode
 ---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
 ---@field panel_enabled boolean                -- open side panel on attach
@@ -43,10 +39,7 @@ local defaults = {
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
-  trace_hover_enabled = true,        -- detailed hover by default
-  hover_function_calls = "short",
-  hover_subroutine_calls = "short",
-  hover_expressions = "short",
+  hover = "disabled",                -- panel is the unit surface; hover off
   cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
   panel_enabled = true,              -- open the side panel on attach
@@ -79,10 +72,7 @@ local function init_options()
     completionEnabled = M.config.completion_enabled,
     codeActionsEnabled = M.config.code_actions_enabled,
     gotoDefinitionEnabled = M.config.goto_definition_enabled,
-    traceHoverEnabled = M.config.trace_hover_enabled,
-    hoverFunctionCalls = M.config.hover_function_calls,
-    hoverSubroutineCalls = M.config.hover_subroutine_calls,
-    hoverExpressions = M.config.hover_expressions,
+    hover = M.config.hover,
     maxWorksetSize = M.config.max_workset_size,
     externalModules = M.config.external_modules,
     cacheMode = M.config.cache_mode,
@@ -315,19 +305,12 @@ M.toggle_inlay_hints      = function() toggle("inlay_hints_enabled",      "inlay
 M.toggle_completion       = function() toggle("completion_enabled",       "unit completion")    end
 M.toggle_code_actions     = function() toggle("code_actions_enabled",     "code actions")       end
 M.toggle_goto_definition  = function() toggle("goto_definition_enabled",  "go-to-definition")   end
-M.toggle_trace            = function() toggle("trace_hover_enabled",      "full unit trace")    end
-
--- Per-surface hover detail level. Short = compact `name : unit` /
--- formal-vs-actual pairing; Detailed = full unit-algebra rule-chain
--- tree. See DimFort's docs/hover-ui.md.
-M.toggle_hover_function_calls = function()
-  cycle("hover_function_calls", "hover (function calls)", { "short", "detailed" })
-end
-M.toggle_hover_subroutine_calls = function()
-  cycle("hover_subroutine_calls", "hover (subroutine calls)", { "short", "detailed" })
-end
-M.toggle_hover_expressions = function()
-  cycle("hover_expressions", "hover (expressions)", { "short", "detailed" })
+-- Hover verbosity: a single tri-state cycled disabled -> short ->
+-- detailed. "disabled" = no hover (panel is the unit surface); "short"
+-- = compact `name : unit`; "detailed" = full unit-algebra tree. The
+-- panel is unaffected. See DimFort's docs/hover-ui.md.
+M.cycle_hover = function()
+  cycle("hover", "hover", { "disabled", "short", "detailed" })
 end
 
 -- Content-hash cache toggle flips between the two useful modes (off
@@ -351,10 +334,7 @@ function M.status()
     string.format("  completion          : %s", flag(M.config.completion_enabled)),
     string.format("  code actions        : %s", flag(M.config.code_actions_enabled)),
     string.format("  go-to-definition    : %s", flag(M.config.goto_definition_enabled)),
-    string.format("  full unit trace     : %s", flag(M.config.trace_hover_enabled)),
-    string.format("  hover (functions)   : %s", M.config.hover_function_calls),
-    string.format("  hover (subroutines) : %s", M.config.hover_subroutine_calls),
-    string.format("  hover (expressions) : %s", M.config.hover_expressions),
+    string.format("  hover               : %s", M.config.hover),
     string.format("  cache               : %s", M.config.cache_mode),
     string.format("  cache dir           : %s",
                   (M.config.cache_dir == "") and "(default)" or M.config.cache_dir),
@@ -466,18 +446,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortToggleGotoDefinition",
     function() M.toggle_goto_definition() end,
     { desc = "DimFort: toggle go-to-definition" })
-  vim.api.nvim_create_user_command("DimFortToggleTrace",
-    function() M.toggle_trace() end,
-    { desc = "DimFort: toggle full unit trace in hover" })
-  vim.api.nvim_create_user_command("DimFortToggleHoverFunctionCalls",
-    function() M.toggle_hover_function_calls() end,
-    { desc = "DimFort: cycle hover detail level for function calls" })
-  vim.api.nvim_create_user_command("DimFortToggleHoverSubroutineCalls",
-    function() M.toggle_hover_subroutine_calls() end,
-    { desc = "DimFort: cycle hover detail level for subroutine calls" })
-  vim.api.nvim_create_user_command("DimFortToggleHoverExpressions",
-    function() M.toggle_hover_expressions() end,
-    { desc = "DimFort: cycle hover detail level for expressions" })
+  vim.api.nvim_create_user_command("DimFortCycleHover",
+    function() M.cycle_hover() end,
+    { desc = "DimFort: cycle hover verbosity (disabled/short/detailed)" })
   vim.api.nvim_create_user_command("DimFortToggleCache",
     function() M.toggle_cache() end,
     { desc = "DimFort: toggle content-hash cache between off and read-write" })

@@ -61,10 +61,7 @@ sections below.
         completion          : on
         code actions        : on
         go-to-definition    : on
-        full unit trace     : on
-        hover (functions)   : short
-        hover (subroutines) : short
-        hover (expressions) : short
+        hover               : disabled
         cache               : read-write
         cache dir           : (default)
         max workset size    : 40
@@ -75,8 +72,11 @@ sections below.
 ## Diagnostics
 
 Diagnostics render per your `vim.diagnostic` config (signs, underline,
-and/or virtual text); use `:lopen` or `vim.diagnostic.open_float()` to
-read messages. On a fresh open, confirm exactly these fire:
+and/or virtual text). Put the cursor on a line and run
+`vim.diagnostic.open_float()` to read its code + message; to list them
+all, `vim.diagnostic.setloclist()` then `:lopen` (a bare `:lopen` errors
+with `E776` because diagnostics don't populate the location list on
+their own). On a fresh open, confirm exactly these fire:
 
 - [ ] **Line 17** — `t_celsius` (no annotation) → **U005 warning**.
 - [ ] **Line 19** — `bogus = c_sound * t` → **H001 error** `kg ≠ m`.
@@ -95,15 +95,19 @@ diagnostics on line 14, then undo (`u`):
 
 ## Hover
 
-Hover with `K` (`vim.lsp.buf.hover()`).
+Hover is **disabled by default** (the panel is the unit surface). Enable
+it with `:DimFortCycleHover`, which cycles `disabled → short → detailed`
+(restarting each time). Hover with `K` (`vim.lsp.buf.hover()`).
 
-- [ ] On **`c_sound`** → its unit, `c_sound : m/s`.
-- [ ] On the **call** `dynamic_pressure` (line 21) → the formal-vs-actual
-      pairing per argument (`v : m/s ◂ c_sound : m/s`).
-- [ ] **Trace toggle is observable** — hover the product `c_sound * t`
-      (line 18). With trace **on** (default) the hover breaks it down
-      across lines (each operand with its unit); `:DimFortToggleTrace`
-      then hover again → it collapses to the single line `c_sound * t : m`.
+- [ ] **Disabled (default)** — `K` on a symbol shows no DimFort info.
+- [ ] **Short** — `:DimFortCycleHover` once. `K` on `c_sound` → `c_sound :
+      m/s`; on the product `c_sound * t` (line 18) → the single line
+      `c_sound * t : m`.
+- [ ] **Detailed** — `:DimFortCycleHover` again. `K` on `c_sound * t` now
+      breaks down across lines (each operand with its unit); on the call
+      `dynamic_pressure` (line 21) → the formal-vs-actual pairing
+      (`v : m/s ◂ c_sound : m/s`).
+- [ ] `:DimFortCycleHover` once more → back to `disabled`.
 
 ## Inlay hints
 
