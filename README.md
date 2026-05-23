@@ -79,14 +79,11 @@ require("dimfort").setup({
   code_actions_enabled = true,
   goto_definition_enabled = true,
 
-  -- Hover layout per surface. "short" = compact `name : unit` /
-  -- formal-vs-actual pairing; "detailed" = full unit-algebra rule
-  -- chain. trace_hover_enabled = true upgrades all surfaces to
-  -- detailed (the default). See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
-  hover_function_calls   = "short",             -- "short" | "detailed"
-  hover_subroutine_calls = "short",
-  hover_expressions      = "short",
-  trace_hover_enabled    = true,                -- detailed hover by default
+  -- Hover verbosity. "disabled" = no hover (the panel is the unit
+  -- surface, so this is the default); "short" = compact `name : unit`;
+  -- "detailed" = full unit-algebra tree. The panel is unaffected.
+  -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
+  hover = "disabled",                           -- "disabled" | "short" | "detailed"
 
   -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
   cache_mode = "read-write",                    -- "off" | "read-only" | "read-write"
@@ -123,10 +120,7 @@ from your own autocommand or keymap.
 | `:DimFortToggleCompletion`               | Toggle unit-name completion; restarts the server.                   |
 | `:DimFortToggleCodeActions`              | Toggle code actions; restarts the server.                           |
 | `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
-| `:DimFortToggleTrace`                    | Toggle the legacy full-unit-trace hover master switch.              |
-| `:DimFortToggleHoverFunctionCalls`       | Cycle the function-call hover detail (Short ↔ Detailed).            |
-| `:DimFortToggleHoverSubroutineCalls`     | Cycle the subroutine-call hover detail.                             |
-| `:DimFortToggleHoverExpressions`         | Cycle the expression hover detail.                                  |
+| `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
