@@ -240,7 +240,13 @@ function M.attach(bufnr)
 end
 
 -- Stop the active client, then attach to the current buffer.
-function M.restart()
+-- Restart the language server. ``opts.message`` (string) is the
+-- notification shown *after* the re-attach — pass the meaningful
+-- confirmation (e.g. "hover → detailed") so it is the last thing
+-- written and isn't stomped by a generic "restarted" message 100ms
+-- later. Defaults to a plain restart notice for :DimFortRestart.
+function M.restart(opts)
+  opts = opts or {}
   if active_client_id then
     local client = vim.lsp.get_client_by_id(active_client_id)
     if client then
@@ -251,7 +257,8 @@ function M.restart()
   -- Defer the re-attach so vim.lsp.stop's cleanup finishes first.
   vim.defer_fn(function()
     M.attach()
-    vim.notify("DimFort: language server restarted", vim.log.levels.INFO)
+    vim.notify(opts.message or "DimFort: language server restarted",
+               vim.log.levels.INFO)
   end, 100)
 end
 
@@ -277,11 +284,10 @@ end
 -- take effect. ``key`` is the field name on M.config (snake_case).
 local function toggle(key, label)
   M.config[key] = not M.config[key]
-  vim.notify(
-    string.format("DimFort: %s %s", label, M.config[key] and "on" or "off"),
-    vim.log.levels.INFO
-  )
-  M.restart()
+  M.restart({
+    message = string.format("DimFort: %s %s", label,
+                            M.config[key] and "on" or "off"),
+  })
 end
 
 -- Cycle an enum-valued setting through ``values`` and restart. Used
@@ -294,11 +300,7 @@ local function cycle(key, label, values)
   end
   local next_v = values[(idx % #values) + 1]
   M.config[key] = next_v
-  vim.notify(
-    string.format("DimFort: %s → %s", label, next_v),
-    vim.log.levels.INFO
-  )
-  M.restart()
+  M.restart({ message = string.format("DimFort: %s → %s", label, next_v) })
 end
 
 M.toggle_inlay_hints      = function() toggle("inlay_hints_enabled",      "inlay hints")        end
