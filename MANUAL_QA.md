@@ -38,7 +38,13 @@ contains
     bogus     = c_sound * t            ! H001: kg = m  (mismatch)
     t_celsius = t - 273.15             ! H010: bare 273.15 literal
     ref_pressure = dynamic_pressure(0.5 * c_sound)
+    call scale_pressure(2.0 * ref_pressure)        ! subroutine call
   end subroutine checks
+
+  subroutine scale_pressure(p)
+    real, intent(in) :: p   !< @unit{Pa}
+    ref_pressure = p
+  end subroutine scale_pressure
 end module qa_mod
 ```
 
@@ -109,6 +115,11 @@ it with `:DimFortCycleHover`, which cycles `disabled → short → detailed`
       (`v : m/s ◂ 0.5 * c_sound : m/s`) gains a sub-tree under the computed
       argument (`0.5 : 1`, `c_sound : m/s`) — that's the difference from
       Short, which shows the pairing row only.
+- [ ] **Subroutine call** — still in `detailed`, `K` on the call name
+      `scale_pressure` (line 22): same formal-vs-actual layout as a
+      function call, **but no return unit in the header** (subroutines
+      don't return) — `p : Pa ◂ 2.0 * ref_pressure : Pa` with the argument
+      sub-tree beneath.
 - [ ] `:DimFortCycleHover` once more → back to `disabled`.
 
 ## Inlay hints
@@ -179,6 +190,17 @@ it refreshes.
       └── 0.5 * c_sound               : m/s        🟢 (R4.2)
           ├── 0.5                     : 1          🟢
           └── c_sound                 : m/s        🟢
+      ```
+
+- [ ] **Subroutine call** — cursor on the call name `scale_pressure` in
+      line 22. A subroutine has no return unit, so the root carries none
+      (🟡), but the computed argument still expands beneath it:
+
+      ```
+      call scale_pressure(2.0 * ref_pressure)              🟡
+      └── 2.0 * ref_pressure                  : kg/(m×s²)  🟢 (R4.2)
+          ├── 2.0                             : 1          🟢
+          └── ref_pressure                    : kg/(m×s²)  🟢
       ```
 
 - [ ] **Stacked scopes** — with the cursor in line 10 (inside the
