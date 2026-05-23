@@ -37,7 +37,7 @@ contains
     d         = c_sound * t            ! OK:   m = (m/s)*s
     bogus     = c_sound * t            ! H001: kg = m  (mismatch)
     t_celsius = t - 273.15             ! H010: bare 273.15 literal
-    ref_pressure = dynamic_pressure(c_sound)
+    ref_pressure = dynamic_pressure(0.5 * c_sound)
   end subroutine checks
 end module qa_mod
 ```
@@ -105,8 +105,10 @@ it with `:DimFortCycleHover`, which cycles `disabled → short → detailed`
       `c_sound * t : m`.
 - [ ] **Detailed** — `:DimFortCycleHover` again. `K` on `c_sound * t` now
       breaks down across lines (each operand with its unit); on the call
-      `dynamic_pressure` (line 21) → the formal-vs-actual pairing
-      (`v : m/s ◂ c_sound : m/s`).
+      `dynamic_pressure` (line 21) the formal-vs-actual pairing
+      (`v : m/s ◂ 0.5 * c_sound : m/s`) gains a sub-tree under the computed
+      argument (`0.5 : 1`, `c_sound : m/s`) — that's the difference from
+      Short, which shows the pairing row only.
 - [ ] `:DimFortCycleHover` once more → back to `disabled`.
 
 ## Inlay hints
@@ -169,11 +171,14 @@ it refreshes.
       ```
 
 - [ ] **Function call with arguments** — cursor on the call name
-      `dynamic_pressure` in line 21:
+      `dynamic_pressure` in line 21. The computed argument breaks down
+      beneath the call:
 
       ```
-      dynamic_pressure(c_sound) : kg/(m×s²)  🟢
-      └── c_sound               : m/s        🟢
+      dynamic_pressure(0.5 * c_sound) : kg/(m×s²)  🟢
+      └── 0.5 * c_sound               : m/s        🟢 (R4.2)
+          ├── 0.5                     : 1          🟢
+          └── c_sound                 : m/s        🟢
       ```
 
 - [ ] **Stacked scopes** — with the cursor in line 10 (inside the
