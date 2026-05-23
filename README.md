@@ -147,6 +147,16 @@ closed and open it on demand with the toggle command. Width is fixed
 (the source window absorbs resize), set via `panel_width_cols` or
 `panel_width_fraction`.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ArrialVictor/DimFort/main/docs/img/panel-nvim-hero_dark.png">
+  <img width="640" src="https://raw.githubusercontent.com/ArrialVictor/DimFort/main/docs/img/panel-nvim-hero_light.png" alt="DimFort side panel in Neovim — the unit-algebra tree for q = 0.5 * rho * v * v with the stacked module/function scope below">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ArrialVictor/DimFort/main/docs/img/panel-nvim-mismatch_dark.png">
+  <img width="640" src="https://raw.githubusercontent.com/ArrialVictor/DimFort/main/docs/img/panel-nvim-mismatch_light.png" alt="DimFort side panel in Neovim — a kg ≠ m homogeneity violation, the assignment root marked red">
+</picture>
+
 ## What you get
 
 Same surface as the VSCode companion:
