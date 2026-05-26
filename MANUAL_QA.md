@@ -67,7 +67,7 @@ sections below.
         completion          : on
         code actions        : on
         go-to-definition    : on
-        hover               : disabled
+        hover               : short
         cache               : read-write
         cache dir           : (default)
         max workset size    : 40
@@ -101,15 +101,13 @@ diagnostics on line 14, then undo (`u`):
 
 ## Hover
 
-Hover is **disabled by default** (the panel is the unit surface). Enable
-it with `:DimFortCycleHover`, which cycles `disabled → short → detailed`
-(restarting each time). Hover with `K` (`vim.lsp.buf.hover()`).
+Hover defaults to **`short`** (one cursor-following unit surface beside the
+panel). `:DimFortCycleHover` cycles `disabled → short → detailed` (restarting
+each time). Hover with `K` (`vim.lsp.buf.hover()`).
 
-- [ ] **Disabled (default)** — `K` on a symbol shows no DimFort info.
-- [ ] **Short** — `:DimFortCycleHover` once. `K` on `c_sound` → `c_sound :
-      m/s`; on the product `c_sound * t` (line 18) → the single line
-      `c_sound * t : m`.
-- [ ] **Detailed** — `:DimFortCycleHover` again. `K` on `c_sound * t` now
+- [ ] **Short (default)** — `K` on `c_sound` → `c_sound : m/s`; on the
+      product `c_sound * t` (line 18) → the single line `c_sound * t : m`.
+- [ ] **Detailed** — `:DimFortCycleHover` once. `K` on `c_sound * t` now
       breaks down across lines (each operand with its unit); on the call
       `dynamic_pressure` (line 21) the formal-vs-actual pairing
       (`v : m/s ◂ 0.5 * c_sound : m/s`) gains a sub-tree under the computed

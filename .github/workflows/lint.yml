@@ -1,8 +1,7 @@
 name: lint
 
-# Tag-gated for now (pre-public; private repos have limited CI
-# minutes). Once the repo is public, add a `pull_request:` trigger
-# and `push: branches: [main]`.
+# Runs on every push/PR to main (guarding the default branch) and on
+# release tags.
 #
 # A thin LSP client has very little runtime behaviour to test — so
 # this is lint-only. luacheck catches typos, undefined globals, and
@@ -11,8 +10,11 @@ name: lint
 
 on:
   push:
+    branches: [main]
     tags:
       - "v*.*.*"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
