@@ -72,18 +72,18 @@ require("dimfort").setup({
   executable = "dimfort",                       -- path to the dimfort binary
 
   -- Feature toggles. Each maps to a server initializationOption.
-  -- Default stance: the side panel + detailed hover are the primary
-  -- surface, so inlay hints are OFF (redundant beside the panel).
+  -- Default stance: the side panel and a short hover are the unit
+  -- surfaces, so inlay hints are OFF (redundant beside them).
   inlay_hints_enabled = false,
   completion_enabled = true,
   code_actions_enabled = true,
   goto_definition_enabled = true,
 
-  -- Hover verbosity. "disabled" = no hover (the panel is the unit
-  -- surface, so this is the default); "short" = compact `name : unit`;
-  -- "detailed" = full unit-algebra tree. The panel is unaffected.
+  -- Hover verbosity. "short" = compact `name : unit` (the default);
+  -- "detailed" = full unit-algebra tree; "disabled" = no hover. The
+  -- panel is unaffected.
   -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
-  hover = "disabled",                           -- "disabled" | "short" | "detailed"
+  hover = "short",                              -- "disabled" | "short" | "detailed"
 
   -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
   cache_mode = "read-write",                    -- "off" | "read-only" | "read-write"
@@ -139,8 +139,8 @@ follows the cursor and shows two stacked sections:
 - **Scope** — the declarations of every *enclosing* scope, stacked
   outermost-first and indented by nesting (a module's declarations,
   then a contained subroutine's locals). Each variable is marked 🟢
-  (annotated) or 🟡 (unannotated), so gaps in your annotation coverage
-  jump out.
+  (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
+  in your annotation coverage jump out.
 
 On by default (opens on attach); set `panel_enabled = false` to keep it
 closed and open it on demand with the toggle command. Width is fixed

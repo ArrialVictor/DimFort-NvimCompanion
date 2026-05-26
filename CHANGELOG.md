@@ -11,9 +11,9 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ### Changed
 
-- **Default UX stance.** Inlay hints now default **off** (redundant
-  beside the panel/hover), the side panel defaults **on**, detailed
-  hover (`trace_hover_enabled`) defaults **on**, and the content-hash
+- **Default UX stance** (unified across the VS / Nvim / Emacs companions).
+  Inlay hints default **off** (redundant beside the panel/hover), the side
+  panel defaults **on**, `hover` defaults to **`short`**, and the content-hash
   cache defaults to **read-write**. Override any of them in `setup{}`.
 
 ### Added
