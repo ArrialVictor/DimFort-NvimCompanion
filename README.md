@@ -85,6 +85,11 @@ require("dimfort").setup({
   -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
   hover = "short",                              -- "disabled" | "short" | "detailed"
 
+  -- Scale/magnitude checking (S001 multiplicative, S002 affine-offset).
+  -- "auto" defers to the project .dimfort.toml [scale] enabled;
+  -- "on"/"off" override it. Cycle with :DimFortCycleScale.
+  scale_mode = "auto",                          -- "auto" | "on" | "off"
+
   -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
   cache_mode = "read-write",                    -- "off" | "read-only" | "read-write"
   cache_dir  = "",                              -- "" = .dimfort-cache/ under workspace root
@@ -122,6 +127,7 @@ from your own autocommand or keymap.
 | `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
+| `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |

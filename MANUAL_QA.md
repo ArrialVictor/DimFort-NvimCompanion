@@ -69,6 +69,7 @@ sections below.
         go-to-definition    : on
         hover               : short
         cache               : read-write
+        scale checking      : auto
         cache dir           : (default)
         max workset size    : 40
         external modules    : (none)
@@ -260,3 +261,31 @@ applies, so they don't pop in and out as the cursor moves.
       whose name or unit matches `Pa` (e.g. `ref_pressure`, `q`), and
       shows a `Filter: "Pa"` header. Scopes with no surviving variables
       are hidden. `:DimFortPanelFilter` with no argument clears it.
+
+## Scale checking (S001 / S002)
+
+Save this `scale_qa.f90` and open it (no `.dimfort.toml` needed — the
+editor toggle drives it):
+
+```fortran
+module scale_qa
+  real :: play   !< @unit{Pa}
+  real :: phpa   !< @unit{hPa}
+  real :: t_k    !< @unit{K}
+  real :: t_c    !< @unit{degC}
+contains
+  subroutine s()
+    phpa = play        ! S001: hPa vs Pa (×100 multiplicative scale)
+    t_k  = t_c         ! S002: K vs degC (affine offset)
+  end subroutine s
+end module scale_qa
+```
+
+- [ ] **Auto (default)** — with `scale_mode = "auto"` and no
+      `.dimfort.toml`, the file is **clean** (no S001/S002).
+- [ ] **On** — `:DimFortCycleScale` until the notification says
+      `scale checking → on` (the server restarts): **yellow** squiggles
+      appear — `phpa = play` → **S001**, `t_k = t_c` → **S002** — and the
+      panel circles match (🟡).
+- [ ] **Off / Auto** — cycle again to `off` (forced clean even if a toml
+      enabled it), once more to `auto` (back to deferring to the toml).
