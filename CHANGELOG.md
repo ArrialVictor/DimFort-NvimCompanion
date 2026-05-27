@@ -26,7 +26,7 @@ below cover client-side changes only (commands, defaults, packaging).
   `:DimFortStatus`.
 - **Side panel** (`:DimFortTogglePanel`) — a persistent split, cursor-
   following with a debounce, at full feature parity with the VSCode
-  companion. Five stacked sections (the volatile middle three show in the
+  companion. Six stacked sections (the volatile middle three show in the
   `both` layout):
   - **Expression** — the unit-algebra tree for the expression under
     the cursor (the same content as the Detailed hover, but it stays
@@ -47,9 +47,13 @@ below cover client-side changes only (commands, defaults, packaging).
     marked 🟢 (annotated), 🟡 (unannotated), or 🔴 (unparseable
     annotation). A name/unit filter (`:DimFortPanelFilter`) narrows long
     declaration lists. Driven by the `dimfort/panelInfo` LSP request.
-  - **Row navigation** — `<CR>` on a declaration, diagnostic, or
-    interaction site jumps to it (cross-file for interactions); the
-    file-wide diagnostic counts pin the footer.
+  - **Imports** — variables a `use` clause brings into scope (usable here
+    but declared elsewhere), grouped by source module, each with its unit.
+    `<CR>` navigates cross-file to where the imported variable — and its
+    `@unit{}` — is declared.
+  - **Row navigation** — `<CR>` on a declaration, diagnostic, interaction
+    site, or import jumps to it (cross-file for interactions and imports);
+    the file-wide diagnostic counts pin the footer.
   - Settings: `panel_enabled` (default `false`), `panel_layout`
     (`both` / `expression` / `routine`), `panel_position`
     (`right` / `left` / `bottom`), `panel_width_fraction` /

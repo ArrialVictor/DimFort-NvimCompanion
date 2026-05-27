@@ -361,6 +361,43 @@ local function render_actions(cv, actions)
   end
 end
 
+-- Imports: variables a 'use' clause brings into scope, grouped by source
+-- module. Each row navigates (cross-file) to the imported variable's
+-- declaration, where its @unit{} lives.
+local function render_imports(cv, imports)
+  imports = (present(imports) and imports) or {}
+  if #imports == 0 then
+    emit(cv, "  (none)")
+    return
+  end
+  -- Group by module, preserving first-seen order.
+  local order, groups = {}, {}
+  for _, im in ipairs(imports) do
+    local m = present(im.module) and im.module or "?"
+    if not groups[m] then
+      groups[m] = {}
+      table.insert(order, m)
+    end
+    table.insert(groups[m], im)
+  end
+  for _, m in ipairs(order) do
+    emit(cv, "  use " .. m)
+    local name_w, unit_w = 4, 4
+    for _, im in ipairs(groups[m]) do
+      name_w = math.max(name_w, #(present(im.name) and im.name or "?"))
+      unit_w = math.max(unit_w, #(present(im.unit) and im.unit or "(none)"))
+    end
+    for _, im in ipairs(groups[m]) do
+      local unit = present(im.unit) and im.unit or "(none)"
+      local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
+      emit(cv, string.format("      %-" .. name_w .. "s  %-" .. unit_w .. "s%s",
+                             present(im.name) and im.name or "?", unit, tail),
+           { file = present(im.file) and im.file or nil,
+             line = im.line, column = im.column })
+    end
+  end
+end
+
 -- Append a titled, divided section to the canvas.
 local function add_section(cv, title, body_fn)
   emit(cv, title)
@@ -403,6 +440,9 @@ local function render_all()
     end
     add_section(cv, "Scope", function(c)
       render_scope(c, payload)
+    end)
+    add_section(cv, "Imports", function(c)
+      render_imports(c, present(payload) and payload.imports or {})
     end)
   end
 
