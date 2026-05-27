@@ -299,10 +299,16 @@ second `use`s the first):
 module phys_constants
   real :: play   !< @unit{Pa}
   real :: grav   !< @unit{m/s^2}
+contains
+  function gravity_at(h) result(g)
+    real, intent(in) :: h   !< @unit{m}
+    real             :: g   !< @unit{m/s^2}
+    g = grav
+  end function gravity_at
 end module phys_constants
 
 module solver
-  use phys_constants, only: play
+  use phys_constants, only: play, gravity_at
   real :: local_p   !< @unit{Pa}
 contains
   subroutine step()
@@ -311,15 +317,21 @@ contains
 end module solver
 ```
 
-- [ ] **Lists the import** — cursor on `local_p = play` (line 11): the
-      **Imports** section shows a `use phys_constants` header with one row,
-      `play  kg/(m×s²) 🟢`.
-- [ ] **Cross-file navigation** — `<CR>` on the `play` row jumps to its
-      declaration in `phys_constants` (line 2; same file here, the source
-      module's file in a real project).
+- [ ] **Lists vars + procedures** — cursor on `local_p = play` (inside
+      `step`): the **Imports** section shows a `from phys_constants` header
+      with two indented rows — `play  kg/(m×s²) 🟢` and
+      `gravity_at()  m/s² 🟢` (the `()` marks the imported function, with
+      its return unit).
+- [ ] **Cross-file navigation** — `<CR>` on `play` jumps to its
+      declaration (line 2); `<CR>` on `gravity_at()` jumps to the function
+      definition (line 5). Same file here; the source module's file in a
+      real project.
 - [ ] **Scoped + shadowed** — `grav` is **not** listed (the `only:` list
       excludes it). Add `real :: play !< @unit{Pa}` as a local in `step`
       and `play` drops from Imports (the local shadows it; it shows under
       Scope instead).
+- [ ] **Shared filter** — `:DimFortPanelFilter play` narrows the Imports
+      section too (only `play` remains; `gravity_at()` drops). No-arg
+      `:DimFortPanelFilter` clears it.
 - [ ] **Empty case** — cursor in `phys_constants` (imports nothing): the
       Imports section shows `(none)`.

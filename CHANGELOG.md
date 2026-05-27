@@ -47,10 +47,12 @@ below cover client-side changes only (commands, defaults, packaging).
     marked 🟢 (annotated), 🟡 (unannotated), or 🔴 (unparseable
     annotation). A name/unit filter (`:DimFortPanelFilter`) narrows long
     declaration lists. Driven by the `dimfort/panelInfo` LSP request.
-  - **Imports** — variables a `use` clause brings into scope (usable here
-    but declared elsewhere), grouped by source module, each with its unit.
-    `<CR>` navigates cross-file to where the imported variable — and its
-    `@unit{}` — is declared.
+  - **Imports** — variables **and procedures** a `use` clause brings into
+    scope (usable here but declared elsewhere), grouped by source module
+    under a `from <module>` header (functions show their return unit and
+    read as `name()`). `<CR>` navigates cross-file to where the imported
+    symbol — and its `@unit{}` — is declared. The Scope filter
+    (`:DimFortPanelFilter`) narrows this section too.
   - **Row navigation** — `<CR>` on a declaration, diagnostic, interaction
     site, or import jumps to it (cross-file for interactions and imports);
     the file-wide diagnostic counts pin the footer.

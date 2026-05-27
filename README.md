@@ -160,10 +160,11 @@ shows six stacked sections (the volatile middle three appear in the
   (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
   in your annotation coverage jump out. `:DimFortPanelFilter <query>`
   narrows the list to variables whose name or unit matches.
-- **Imports** — variables a `use` clause brings into scope (usable here
-  but declared elsewhere), grouped by source module, each with its unit.
-  Rows navigate cross-file to where the imported variable — and its
-  `@unit{}` — is declared.
+- **Imports** — variables and procedures a `use` clause brings into scope
+  (usable here but declared elsewhere), grouped by source module under a
+  `from <module>` header (functions show their return unit and read as
+  `name()`). Rows navigate cross-file to where the imported symbol — and
+  its `@unit{}` — is declared. `:DimFortPanelFilter` narrows this too.
 
 Press `<CR>` on any declaration, diagnostic, interaction-site, or import
 row to jump to it (cross-file for interaction sites and imports); the

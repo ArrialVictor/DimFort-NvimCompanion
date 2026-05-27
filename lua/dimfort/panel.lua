@@ -361,18 +361,48 @@ local function render_actions(cv, actions)
   end
 end
 
--- Imports: variables a 'use' clause brings into scope, grouped by source
--- module. Each row navigates (cross-file) to the imported variable's
--- declaration, where its @unit{} lives.
+-- Display name for an import row: a callable (imported function /
+-- subroutine) reads as ``name()``.
+local function import_label(im)
+  local n = present(im.name) and im.name or "?"
+  return (im.callable == true) and (n .. "()") or n
+end
+
+-- Case-insensitive match of an import against the shared filter, over
+-- the displayed name, the unit, and the source module.
+local function import_matches(im, q)
+  if q == "" then return true end
+  local name = import_label(im):lower()
+  if name:find(q, 1, true) then return true end
+  local unit = present(im.unit) and im.unit:lower() or ""
+  if unit ~= "" and unit:find(q, 1, true) then return true end
+  local m = present(im.module) and im.module:lower() or ""
+  return m ~= "" and m:find(q, 1, true) ~= nil
+end
+
+-- Imports: variables + procedures a 'use' clause brings into scope,
+-- grouped by source module. Each row navigates (cross-file) to where the
+-- imported symbol — and its @unit{} — is declared. The shared Scope
+-- filter (state.scope_filter) narrows this section too.
 local function render_imports(cv, imports)
   imports = (present(imports) and imports) or {}
-  if #imports == 0 then
-    emit(cv, "  (none)")
+  local q = (state.scope_filter or ""):lower()
+  -- Filter first, then group (so empty groups disappear under a filter).
+  local kept = {}
+  for _, im in ipairs(imports) do
+    if import_matches(im, q) then table.insert(kept, im) end
+  end
+  if #kept == 0 then
+    if q ~= "" and #imports > 0 then
+      emit(cv, '  (no imports match "' .. state.scope_filter .. '")')
+    else
+      emit(cv, "  (none)")
+    end
     return
   end
   -- Group by module, preserving first-seen order.
   local order, groups = {}, {}
-  for _, im in ipairs(imports) do
+  for _, im in ipairs(kept) do
     local m = present(im.module) and im.module or "?"
     if not groups[m] then
       groups[m] = {}
@@ -381,17 +411,17 @@ local function render_imports(cv, imports)
     table.insert(groups[m], im)
   end
   for _, m in ipairs(order) do
-    emit(cv, "  use " .. m)
+    emit(cv, "  from " .. m)
     local name_w, unit_w = 4, 4
     for _, im in ipairs(groups[m]) do
-      name_w = math.max(name_w, #(present(im.name) and im.name or "?"))
+      name_w = math.max(name_w, #import_label(im))
       unit_w = math.max(unit_w, #(present(im.unit) and im.unit or "(none)"))
     end
     for _, im in ipairs(groups[m]) do
       local unit = present(im.unit) and im.unit or "(none)"
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
       emit(cv, string.format("      %-" .. name_w .. "s  %-" .. unit_w .. "s%s",
-                             present(im.name) and im.name or "?", unit, tail),
+                             import_label(im), unit, tail),
            { file = present(im.file) and im.file or nil,
              line = im.line, column = im.column })
     end
