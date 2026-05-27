@@ -365,7 +365,9 @@ end
 -- subroutine) reads as ``name()``.
 local function import_label(im)
   local n = present(im.name) and im.name or "?"
-  return (im.callable == true) and (n .. "()") or n
+  if im.callable ~= true then return n end
+  -- ``signature`` is the parenthesised argument units, e.g. "(kg, m)".
+  return n .. (present(im.signature) and im.signature or "()")
 end
 
 -- Case-insensitive match of an import against the shared filter, over

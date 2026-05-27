@@ -320,10 +320,10 @@ end module solver
 - [ ] **Lists vars + procedures** — cursor on `local_p = play` (inside
       `step`): the **Imports** section shows a `from phys_constants` header
       with two indented rows — `play  kg/(m×s²) 🟢` and
-      `gravity_at()  m/s² 🟢` (the `()` marks the imported function, with
-      its return unit).
+      `gravity_at(m)  m/s² 🟢` (its `(m)` argument unit in the parens, its
+      `m/s²` return unit in the column).
 - [ ] **Cross-file navigation** — `<CR>` on `play` jumps to its
-      declaration (line 2); `<CR>` on `gravity_at()` jumps to the function
+      declaration (line 2); `<CR>` on `gravity_at(m)` jumps to the function
       definition (line 5). Same file here; the source module's file in a
       real project.
 - [ ] **Scoped + shadowed** — `grav` is **not** listed (the `only:` list

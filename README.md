@@ -162,8 +162,8 @@ shows six stacked sections (the volatile middle three appear in the
   narrows the list to variables whose name or unit matches.
 - **Imports** — variables and procedures a `use` clause brings into scope
   (usable here but declared elsewhere), grouped by source module under a
-  `from <module>` header (functions show their return unit and read as
-  `name()`). Rows navigate cross-file to where the imported symbol — and
+  `from <module>` header (functions read as `name(argunits)`, showing
+  their argument + return units, e.g. `force(kg)`). Rows navigate cross-file to where the imported symbol — and
   its `@unit{}` — is declared. `:DimFortPanelFilter` narrows this too.
 
 Press `<CR>` on any declaration, diagnostic, interaction-site, or import

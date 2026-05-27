@@ -49,8 +49,8 @@ below cover client-side changes only (commands, defaults, packaging).
     declaration lists. Driven by the `dimfort/panelInfo` LSP request.
   - **Imports** — variables **and procedures** a `use` clause brings into
     scope (usable here but declared elsewhere), grouped by source module
-    under a `from <module>` header (functions show their return unit and
-    read as `name()`). `<CR>` navigates cross-file to where the imported
+    under a `from <module>` header (functions read as `name(argunits)`,
+    showing their argument + return units, e.g. `force(kg)`). `<CR>` navigates cross-file to where the imported
     symbol — and its `@unit{}` — is declared. The Scope filter
     (`:DimFortPanelFilter`) narrows this section too.
   - **Row navigation** — `<CR>` on a declaration, diagnostic, interaction
