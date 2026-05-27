@@ -18,22 +18,38 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ### Added
 
-- **Side panel** (`:DimFortTogglePanel`) — a persistent split showing
-  two stacked sections, cursor-following with a debounce:
+- **Side panel** (`:DimFortTogglePanel`) — a persistent split, cursor-
+  following with a debounce, at full feature parity with the VSCode
+  companion. Five stacked sections (the volatile middle three show in the
+  `both` layout):
   - **Expression** — the unit-algebra tree for the expression under
     the cursor (the same content as the Detailed hover, but it stays
     put while you edit). Markers and units align in columns.
+  - **Diagnostics** — DimFort diagnostics on the cursor line, with the
+    🔴/🟡/🔵 severity-circle vocabulary (info-level diagnostics such as
+    P001 unparsed regions read the same as the rest).
+  - **Interactions** — cross-site unit constraints for the symbol under
+    the cursor (the `dimfort interactions` query): the X001 conflict, if
+    any, then the Declaration / Write / Read / Undetermined-read groups,
+    each site showing its location, unit, and source snippet. Driven by
+    the `dimfort/interactions` LSP request.
+  - **Actions** — the code actions available at the cursor (Add `@unit{}`
+    / extract literal to a PARAMETER), applied in place with `<CR>`.
   - **Scope** — the declarations of every *enclosing* scope, stacked
     outermost-first and indented by nesting depth (e.g. a module's
     declarations, then a contained subroutine's locals). Each row is
-    marked 🟢 (annotated) or 🟡 (unannotated). Driven by the new
-    `dimfort/panelInfo` LSP request.
+    marked 🟢 (annotated), 🟡 (unannotated), or 🔴 (unparseable
+    annotation). A name/unit filter (`:DimFortPanelFilter`) narrows long
+    declaration lists. Driven by the `dimfort/panelInfo` LSP request.
+  - **Row navigation** — `<CR>` on a declaration, diagnostic, or
+    interaction site jumps to it (cross-file for interactions); the
+    file-wide diagnostic counts pin the footer.
   - Settings: `panel_enabled` (default `false`), `panel_layout`
     (`both` / `expression` / `routine`), `panel_position`
     (`right` / `left` / `bottom`), `panel_width_fraction` /
     `panel_width_cols`, `panel_debounce_ms`.
   - Commands: `:DimFortTogglePanel`, `:DimFortPanelLayout {kind}`,
-    `:DimFortPanelRefresh`.
+    `:DimFortPanelRefresh`, `:DimFortPanelFilter [query]`.
 
 ## [0.1.1] — 2026-05-22
 

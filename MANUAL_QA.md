@@ -225,3 +225,38 @@ it refreshes.
 - [ ] **Cursor-follow** — move between line 10 (function) and line 19
       (subroutine); the Scope section switches between `Function:
       dynamic_pressure` and `Subroutine: checks`.
+
+### Panel — Diagnostics / Interactions / Actions (the `both` layout)
+
+These three sections sit between Expression and Scope in the default
+`both` layout. Each is always present, showing `(none)` when nothing
+applies, so they don't pop in and out as the cursor moves.
+
+- [ ] **Diagnostics** — cursor on line 19 (`bogus = c_sound * t`); the
+      Diagnostics section shows **🔴 H001: …** (the cursor-line
+      diagnostic). On line 17 (`t_celsius`) it shows **🟡 U005: …**. On a
+      clean line (18) it shows `(none)`. Press `<CR>` on a diagnostic row
+      → the cursor jumps to that span in the source.
+- [ ] **Interactions** — cursor on a `c_sound` use (line 18). The
+      Interactions section shows the symbol `c_sound`, then the
+      **Declaration** group (line 2) and **Read** group (its use sites),
+      each row `file:line   unit` with the source snippet beneath. Press
+      `<CR>` on a site → jumps there (cross-file when the site is in
+      another file). Because `c_sound` is read as `m/s` at lines 18/21 but
+      as `kg/s` at line 19 (`bogus` is `kg`), a **🔴 X001** conflict row
+      sits at the top.
+- [ ] **Actions** — cursor on `t_celsius` (line 17) → the Actions section
+      lists **• Add @unit{} to t_celsius**; `<CR>` on it inserts
+      `!< @unit{}` in the source (cursor between the braces). Cursor
+      anywhere on line 20 (the H010 line) → **• Extract literal '273.15'
+      into a named PARAMETER (s)**; `<CR>` prompts for a name and applies
+      the refactor.
+- [ ] **Footer** — the panel's last line reads `File: 🔴 N   🟡 N` with
+      the whole-file error / warning counts.
+
+### Panel — Scope filter
+
+- [ ] `:DimFortPanelFilter Pa` → the Scope section keeps only variables
+      whose name or unit matches `Pa` (e.g. `ref_pressure`, `q`), and
+      shows a `Filter: "Pa"` header. Scopes with no surviving variables
+      are hidden. `:DimFortPanelFilter` with no argument clears it.

@@ -125,22 +125,39 @@ from your own autocommand or keymap.
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
+| `:DimFortPanelFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
 
 ## Side panel
 
 `:DimFortTogglePanel` opens a persistent split (right by default) that
-follows the cursor and shows two stacked sections:
+follows the cursor. At full feature parity with the VSCode companion, it
+shows five stacked sections (the volatile middle three appear in the
+`both` layout):
 
 - **Expression** — the unit-algebra tree for the expression under the
   cursor: each node with its resolved unit, the rule that produced it,
   and a 🟢 / 🟡 / 🔴 marker, columns aligned. Same content as the
   Detailed hover, but it stays visible while you edit — handy for
   debugging a mismatch or talking through code with someone.
+- **Diagnostics** — DimFort diagnostics on the cursor line, with the
+  🔴 / 🟡 / 🔵 severity-circle vocabulary (info-level diagnostics such as
+  P001 unparsed regions read the same as the rest).
+- **Interactions** — cross-site unit constraints for the symbol under
+  the cursor (the `dimfort interactions` query): the X001 conflict, if
+  any, then the Declaration / Write / Read / Undetermined-read groups,
+  each site showing its location, unit, and source snippet.
+- **Actions** — the code actions available at the cursor (Add `@unit{}`
+  / extract literal to a PARAMETER); press `<CR>` on one to apply it.
 - **Scope** — the declarations of every *enclosing* scope, stacked
   outermost-first and indented by nesting (a module's declarations,
   then a contained subroutine's locals). Each variable is marked 🟢
   (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
-  in your annotation coverage jump out.
+  in your annotation coverage jump out. `:DimFortPanelFilter <query>`
+  narrows the list to variables whose name or unit matches.
+
+Press `<CR>` on any declaration, diagnostic, or interaction-site row to
+jump to it (cross-file for interaction sites); the file-wide diagnostic
+counts pin the footer.
 
 On by default (opens on attach); set `panel_enabled = false` to keep it
 closed and open it on demand with the toggle command. Width is fixed
