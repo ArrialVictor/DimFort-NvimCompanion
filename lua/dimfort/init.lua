@@ -505,6 +505,13 @@ function M.setup(opts)
       desc = "DimFort: filter the panel's Scope section by name/unit "
         .. "(no argument clears it)",
     })
+  vim.api.nvim_create_user_command("DimFortImportsFilter",
+    function(args) panel.set_imports_filter(args.args) end,
+    {
+      nargs = "?",
+      desc = "DimFort: filter the panel's Imports section by name/unit/"
+        .. "module (no argument clears it)",
+    })
   if M.config.panel_enabled then
     -- Open after the LSP attach has had time to settle.
     vim.defer_fn(function() panel.open() end, 500)

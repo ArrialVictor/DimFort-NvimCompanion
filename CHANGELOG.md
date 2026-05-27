@@ -51,8 +51,8 @@ below cover client-side changes only (commands, defaults, packaging).
     scope (usable here but declared elsewhere), grouped by source module
     under a `from <module>` header (functions read as `name(argunits)`,
     showing their argument + return units, e.g. `force(kg)`). `<CR>` navigates cross-file to where the imported
-    symbol — and its `@unit{}` — is declared. The Scope filter
-    (`:DimFortPanelFilter`) narrows this section too.
+    symbol — and its `@unit{}` — is declared. Has its own name/unit/
+    module filter, `:DimFortImportsFilter`.
   - **Row navigation** — `<CR>` on a declaration, diagnostic, interaction
     site, or import jumps to it (cross-file for interactions and imports);
     the file-wide diagnostic counts pin the footer.

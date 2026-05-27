@@ -51,6 +51,7 @@ local state = {
   last_interactions = nil,   -- cached last interactions report
   last_actions = nil,        -- cached last code-action list
   scope_filter = "",         -- client-side Scope name/unit filter
+  imports_filter = "",       -- client-side Imports name/unit/module filter
   -- Per-rendered-line navigation targets, rebuilt on every paint.
   -- targets[i] is nil (inert) or { line=, column=, file=, end_line=,
   -- end_column= } for a jump, or { action = <CodeAction> } to apply.
@@ -384,11 +385,16 @@ end
 
 -- Imports: variables + procedures a 'use' clause brings into scope,
 -- grouped by source module. Each row navigates (cross-file) to where the
--- imported symbol — and its @unit{} — is declared. The shared Scope
--- filter (state.scope_filter) narrows this section too.
+-- imported symbol — and its @unit{} — is declared. Has its own name/unit/
+-- module filter (state.imports_filter, set via :DimFortImportsFilter).
 local function render_imports(cv, imports)
   imports = (present(imports) and imports) or {}
-  local q = (state.scope_filter or ""):lower()
+  local q = (state.imports_filter or ""):lower()
+  if q ~= "" then
+    emit(cv, 'Filter: "' .. state.imports_filter
+            .. '"  (:DimFortImportsFilter to change)')
+    emit(cv, "")
+  end
   -- Filter first, then group (so empty groups disappear under a filter).
   local kept = {}
   for _, im in ipairs(imports) do
@@ -396,7 +402,7 @@ local function render_imports(cv, imports)
   end
   if #kept == 0 then
     if q ~= "" and #imports > 0 then
-      emit(cv, '  (no imports match "' .. state.scope_filter .. '")')
+      emit(cv, '  (no imports match "' .. state.imports_filter .. '")')
     else
       emit(cv, "  (none)")
     end
@@ -837,6 +843,15 @@ end
 -- Client-side: no LSP round-trip, repaints from the cached payload.
 function M.set_filter(query)
   state.scope_filter = query or ""
+  if state.win and vim.api.nvim_win_is_valid(state.win) then
+    paint(render_all(), false)
+  end
+end
+
+-- Set (or clear) the Imports section's name/unit/module filter — its own
+-- filter, independent of the Scope one.
+function M.set_imports_filter(query)
+  state.imports_filter = query or ""
   if state.win and vim.api.nvim_win_is_valid(state.win) then
     paint(render_all(), false)
   end
