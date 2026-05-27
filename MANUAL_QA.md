@@ -330,8 +330,9 @@ end module solver
       excludes it). Add `real :: play !< @unit{Pa}` as a local in `step`
       and `play` drops from Imports (the local shadows it; it shows under
       Scope instead).
-- [ ] **Shared filter** — `:DimFortPanelFilter play` narrows the Imports
-      section too (only `play` remains; `gravity_at()` drops). No-arg
-      `:DimFortPanelFilter` clears it.
+- [ ] **Imports filter** — `:DimFortImportsFilter gravity` narrows the
+      Imports section to `gravity_at(m)`; `:DimFortImportsFilter play` to
+      `play`; no-arg clears it. It's independent of `:DimFortPanelFilter`
+      (Scope) — neither affects the other.
 - [ ] **Empty case** — cursor in `phys_constants` (imports nothing): the
       Imports section shows `(none)`.
