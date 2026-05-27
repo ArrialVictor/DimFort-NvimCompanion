@@ -18,6 +18,12 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ### Added
 
+- **Scale-checking toggle** — a new `scale_mode` setting
+  (`"auto"` / `"on"` / `"off"`, default `"auto"`) and a
+  `:DimFortCycleScale` command. `"auto"` defers to the project's
+  `.dimfort.toml` `[scale] enabled`; `"on"`/`"off"` force the magnitude
+  layer (S001/S002) for the session, overriding the toml. Shown in
+  `:DimFortStatus`.
 - **Side panel** (`:DimFortTogglePanel`) — a persistent split, cursor-
   following with a debounce, at full feature parity with the VSCode
   companion. Five stacked sections (the volatile middle three show in the
