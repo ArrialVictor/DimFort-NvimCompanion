@@ -137,7 +137,7 @@ from your own autocommand or keymap.
 
 `:DimFortTogglePanel` opens a persistent split (right by default) that
 follows the cursor. At full feature parity with the VSCode companion, it
-shows five stacked sections (the volatile middle three appear in the
+shows six stacked sections (the volatile middle three appear in the
 `both` layout):
 
 - **Expression** — the unit-algebra tree for the expression under the
@@ -160,10 +160,14 @@ shows five stacked sections (the volatile middle three appear in the
   (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
   in your annotation coverage jump out. `:DimFortPanelFilter <query>`
   narrows the list to variables whose name or unit matches.
+- **Imports** — variables a `use` clause brings into scope (usable here
+  but declared elsewhere), grouped by source module, each with its unit.
+  Rows navigate cross-file to where the imported variable — and its
+  `@unit{}` — is declared.
 
-Press `<CR>` on any declaration, diagnostic, or interaction-site row to
-jump to it (cross-file for interaction sites); the file-wide diagnostic
-counts pin the footer.
+Press `<CR>` on any declaration, diagnostic, interaction-site, or import
+row to jump to it (cross-file for interaction sites and imports); the
+file-wide diagnostic counts pin the footer.
 
 On by default (opens on attach); set `panel_enabled = false` to keep it
 closed and open it on demand with the toggle command. Width is fixed
