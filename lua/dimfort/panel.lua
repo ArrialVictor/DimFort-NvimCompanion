@@ -418,7 +418,16 @@ local function render_imports(cv, imports)
       unit_w = math.max(unit_w, #(present(im.unit) and im.unit or "(none)"))
     end
     for _, im in ipairs(groups[m]) do
-      local unit = present(im.unit) and im.unit or "(none)"
+      -- A subroutine (callable, no unit, not a missing annotation) reads
+      -- as "—" rather than "(none)" — it has no return value to annotate.
+      local unit
+      if present(im.unit) then
+        unit = im.unit
+      elseif im.callable == true and im.kind == "annotated" then
+        unit = "—"
+      else
+        unit = "(none)"
+      end
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
       emit(cv, string.format("      %-" .. name_w .. "s  %-" .. unit_w .. "s%s",
                              import_label(im), unit, tail),
