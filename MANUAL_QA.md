@@ -34,12 +34,18 @@ contains
     real :: d          !< @unit{m}
     real :: bogus      !< @unit{kg}
     real :: combo      !< @unit{m^2/s^2}
+    real :: ln_p       !< @unit{LOG(Pa)}
+    real :: rt_e2      !< @unit{m/s}
+    real :: abs_t      !< @unit{s}
     real :: t_celsius                  ! no annotation -> U005
     d         = c_sound * t            ! OK:   m = (m·s⁻¹)*s
     bogus     = c_sound * t            ! H001: kg = m  (mismatch)
     t_celsius = t - 273.15             ! H010: bare 273.15 literal
     combo     = c_sound**2 + d * d / (t * t) - c_sound * c_sound
                                            !       (exercises +, -, *, /, **; all m²/s²)
+    ln_p      = log(ref_pressure)            ! intrinsic: LOG-wrap (Pa → LOG(Pa))
+    rt_e2     = sqrt(c_sound * c_sound)      ! intrinsic: sqrt halves (m²/s² → m/s)
+    abs_t     = abs(t)                       ! intrinsic: preserves (s → s)
     ref_pressure = dynamic_pressure(0.5 * c_sound)
     call scale_pressure(2.0 * ref_pressure)        ! subroutine call
   end subroutine checks
@@ -88,11 +94,11 @@ all, `vim.diagnostic.setloclist()` then `:lopen` (a bare `:lopen` errors
 with `E776` because diagnostics don't populate the location list on
 their own). On a fresh open, confirm exactly these fire:
 
-- [ ] **Line 18** — `t_celsius` (no annotation) → **U005 warning**.
-- [ ] **Line 20** — `bogus = c_sound * t` → **H001 error** `kg ≠ m`.
-- [ ] **Line 21** — `t_celsius = t - 273.15` → **H010 warning** on the
+- [ ] **Line 21** — `t_celsius` (no annotation) → **U005 warning**.
+- [ ] **Line 23** — `bogus = c_sound * t` → **H001 error** `kg ≠ m`.
+- [ ] **Line 24** — `t_celsius = t - 273.15` → **H010 warning** on the
       `273.15` literal (suggests extracting it to a named PARAMETER).
-- [ ] Lines 19, 22, and 24 are **clean** — no diagnostic.
+- [ ] Lines 22, 25, 27, 28, 29, and 30 are **clean** — no diagnostic.
 
 **Interactive — U002 (unparseable annotation):** change line 14's
 `!< @unit{s}` to `!< @unit{??}` and save (`:w`). Confirm **two**
@@ -110,27 +116,63 @@ panel). `:DimFortCycleHover` cycles `disabled → short → detailed` (restartin
 each time). Hover with `K` (`vim.lsp.buf.hover()`).
 
 - [ ] **Short (default)** — `K` on `c_sound` → single row
-      `c_sound : m·s⁻¹`; on the product `c_sound * t` (line 19) → the
+      `c_sound : m·s⁻¹`; on the product `c_sound * t` (line 22) → the
       tree shape used by every short hover: root `c_sound * t : m  🟢` +
       immediate operand rows `├── c_sound : m·s⁻¹  🟢` and
       `└── t : s  🟢`.
-- [ ] **Binary operators** — on **line 22** (the `combo = …` assignment),
+- [ ] **Binary operators** — on **line 25** (the `combo = …` assignment),
       `K` on each of `+`, `-`, `*`, `/`, `**` in turn. Each renders the
       same tree shape (root sub-expression + immediate operand rows);
       every row is 🟢; the topmost `**` shows `c_sound**2 : m²·s⁻²` over
       its operand rows. One fixture exercises every binary operator.
 - [ ] **Detailed** — `:DimFortCycleHover` once. For bare-identifier
       operands like `c_sound * t` the layout is unchanged from short
-      (nothing to expand). For the call `dynamic_pressure` (line 24)
+      (nothing to expand). For the call `dynamic_pressure` (line 30)
       the call hover renders the same tree shape as the side panel:
       root `dynamic_pressure(0.5 * c_sound) : kg·m⁻¹·s⁻² 🟢` + child
       row `0.5 * c_sound : m·s⁻¹ 🟢` + sub-tree (`0.5 : 1`,
       `c_sound : m·s⁻¹`). Short shows root + the argument row only.
 - [ ] **Subroutine call** — still in `detailed`, `K` on the call name
-      `scale_pressure` (line 25): same tree layout as a function call,
+      `scale_pressure` (line 31): same tree layout as a function call,
       **but the root has no return unit** so it reads `call
       scale_pressure(…) : ? 🟡`. Argument row
       `2.0 * ref_pressure : kg·m⁻¹·s⁻² 🟢` with the sub-tree beneath.
+- [ ] **Intrinsics — same tree as user calls.** Still in `detailed`:
+      - `K` on `log` (line 27): root row `log(ref_pressure) : LOG(Pa)`
+        + child row `ref_pressure : Pa 🟢`. The intrinsic call hover
+        now uses the same tree renderer as user calls — no more
+        bare-identifier-fallback one-liner.
+      - `K` on `sqrt` (line 28): root row `sqrt(c_sound * c_sound) :
+        m·s⁻¹` + computed-arg row (with its operand sub-tree in
+        Detailed). Sqrt halves the unit (m²/s² → m/s).
+      - `K` on `abs` (line 29): root row `abs(t) : s` + `t : s` child
+        row. Abs preserves the operand's unit.
+      Intrinsics have no `(expected …)` annotation on args — we don't
+      track formal-arg units for them — but the structural tree is
+      identical.
+- [ ] **Assignment-mismatch `(expected …)` annotation.** On line 23
+      (`bogus = c_sound * t`), `K` on the `=`. The root row paints 🔴
+      from `H001` owning the assignment; the RHS child row reads
+      `c_sound * t : m  🟡  (expected kg)`. The 🟡 is the
+      🟡-on-`expected` override — the RHS expression resolved cleanly
+      to `m`, but its consumer (the LHS) demanded `kg`. The
+      annotation surfaces the same information the `(expected …)` tag
+      gives on call-arg mismatches.
+- [ ] **Pure-signature hover** (cursor on a function/subroutine
+      *definition* header — no call site). `K` on `dynamic_pressure`
+      in **line 5** (the function definition itself). The hover
+      collapses to a single line:
+
+      ```
+      🟢 DimFort
+
+      dynamic_pressure: (m·s⁻¹) → kg·m⁻¹·s⁻²
+      ```
+
+      Just the dimensional signature. No per-arg row table — the
+      header alone carries the formal interface. Unannotated formal
+      slots and unannotated returns render as `?` and flip the
+      header marker to 🟡.
 - [ ] `:DimFortCycleHover` once more → back to `disabled`.
 
 ## Inlay hints
@@ -143,9 +185,9 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
 `vim.lsp.buf.code_action()` (Neovim 0.11 default mapping: `gra`) with the
 cursor on the relevant line.
 
-- [ ] On `t_celsius` (line 18) → **"add `@unit{}`"**. Applying inserts
+- [ ] On `t_celsius` (line 21) → **"add `@unit{}`"**. Applying inserts
       `!< @unit{}` and leaves the cursor **between the braces**.
-- [ ] On the `273.15` (line 21) → **"extract literal to PARAMETER"**.
+- [ ] On the `273.15` (line 24) → **"extract literal to PARAMETER"**.
       Applying prompts for a name (`vim.ui.input`), then inserts a typed
       `real, parameter` declaration and replaces the `273.15`.
 
@@ -163,7 +205,7 @@ follows the cursor (≈200 ms debounce) and dims (Comment highlight) while
 it refreshes.
 
 - [ ] **Assignment with a mismatch** — put the cursor on the **`=`** in
-      line 20 (`bogus = c_sound * t`). The whole assignment renders, marked
+      line 23 (`bogus = c_sound * t`). The whole assignment renders, marked
       🔴 because `kg ≠ m`:
 
       ```
@@ -195,7 +237,7 @@ it refreshes.
       ```
 
 - [ ] **Function call with arguments** — cursor on the call name
-      `dynamic_pressure` in line 24. The computed argument breaks down
+      `dynamic_pressure` in line 30. The computed argument breaks down
       beneath the call:
 
       ```
@@ -206,7 +248,7 @@ it refreshes.
       ```
 
 - [ ] **Subroutine call** — cursor on the call name `scale_pressure` in
-      line 25. A subroutine has no return unit, so the root carries none
+      line 31. A subroutine has no return unit, so the root carries none
       (🟡), but the computed argument still expands beneath it:
 
       ```
@@ -216,7 +258,7 @@ it refreshes.
           └── ref_pressure                    : kg·m⁻¹·s⁻²  🟢
       ```
 
-- [ ] **Call-arg expected on mismatch** — temporarily edit line 24 to
+- [ ] **Call-arg expected on mismatch** — temporarily edit line 30 to
       `ref_pressure = dynamic_pressure(c_sound * t)`. The Expression
       tree's argument row now shows
       `c_sound * t : m 🔴 (expected m·s⁻¹)`, surfacing the formal unit the
@@ -240,10 +282,10 @@ it refreshes.
           8     rho  kg/m^3 🟢
       ```
 
-- [ ] **Markers** — in `checks` (e.g. cursor in line 20), `t_celsius`
+- [ ] **Markers** — in `checks` (e.g. cursor in line 23), `t_celsius`
       shows 🟡 (unannotated); a `@unit{??}` in scope shows 🔴.
 
-- [ ] **Cursor-follow** — move between line 10 (function) and line 20
+- [ ] **Cursor-follow** — move between line 10 (function) and line 23
       (subroutine); the Scope section switches between `Function:
       dynamic_pressure` and `Subroutine: checks`.
 
@@ -253,23 +295,23 @@ These three sections sit between Expression and Scope in the default
 `both` layout. Each is always present, showing `(none)` when nothing
 applies, so they don't pop in and out as the cursor moves.
 
-- [ ] **Diagnostics** — cursor on line 20 (`bogus = c_sound * t`); the
+- [ ] **Diagnostics** — cursor on line 23 (`bogus = c_sound * t`); the
       Diagnostics section shows **🔴 H001: …** (the cursor-line
-      diagnostic). On line 18 (`t_celsius`) it shows **🟡 U005: …**. On a
+      diagnostic). On line 21 (`t_celsius`) it shows **🟡 U005: …**. On a
       clean line (18) it shows `(none)`. Press `<CR>` on a diagnostic row
       → the cursor jumps to that span in the source.
-- [ ] **Interactions** — cursor on a `c_sound` use (line 19). The
+- [ ] **Interactions** — cursor on a `c_sound` use (line 22). The
       Interactions section shows the symbol `c_sound`, then the
       **Declaration** group (line 2) and **Read** group (its use sites),
       each row `file:line   unit` with the source snippet beneath. Press
       `<CR>` on a site → jumps there (cross-file when the site is in
       another file). Because `c_sound` is read as `m·s⁻¹` at lines 18/21 but
-      as `kg/s` at line 20 (`bogus` is `kg`), a **🔴 X001** conflict row
+      as `kg/s` at line 23 (`bogus` is `kg`), a **🔴 X001** conflict row
       sits at the top.
-- [ ] **Actions** — cursor on `t_celsius` (line 18) → the Actions section
+- [ ] **Actions** — cursor on `t_celsius` (line 21) → the Actions section
       lists **• Add @unit{} to t_celsius**; `<CR>` on it inserts
       `!< @unit{}` in the source (cursor between the braces). Cursor
-      anywhere on line 21 (the H010 line) → **• Extract literal '273.15'
+      anywhere on line 24 (the H010 line) → **• Extract literal '273.15'
       into a named PARAMETER (s)**; `<CR>` prompts for a name and applies
       the refactor.
 - [ ] **Footer** — the panel's last line reads `File: 🔴 N   🟡 N` with
@@ -316,43 +358,71 @@ Save this `imports_qa.f90` and open it (one file, two modules — the
 second `use`s the first):
 
 ```fortran
+! `phys_base` exists to test TRANSITIVE re-export: phys_constants
+! `use`s it, and `solver` uses phys_constants — see whether `g0`
+! surfaces in solver's Imports section.
+module phys_base
+  real :: g0   !< @unit{m/s^2}
+end module phys_base
+
 module phys_constants
-  real :: play   !< @unit{Pa}
-  real :: grav   !< @unit{m·s⁻¹^2}
+  use phys_base                          ! transitive: re-exports g0 by default
+  real :: play     !< @unit{Pa}
+  real :: grav     !< @unit{m/s^2}
+  real :: density                        ! NO annotation → unannotated 🟡
 contains
   function gravity_at(h) result(g)
     real, intent(in) :: h   !< @unit{m}
-    real             :: g   !< @unit{m·s⁻¹^2}
+    real             :: g   !< @unit{m/s^2}
     g = grav
   end function gravity_at
+  subroutine set_play(p)
+    real, intent(in) :: p   !< @unit{Pa}
+    play = p
+  end subroutine set_play
 end module phys_constants
 
 module solver
-  use phys_constants, only: play, gravity_at
+  use phys_constants, only: play, gravity_at, set_play, density
   real :: local_p   !< @unit{Pa}
 contains
   subroutine step()
     local_p = play
+    call set_play(local_p)
   end subroutine step
 end module solver
 ```
 
-- [ ] **Lists vars + procedures** — cursor on `local_p = play` (inside
-      `step`): the **Imports** section shows a `from phys_constants` header
-      with two indented rows — `play  kg·m⁻¹·s⁻² 🟢` and
-      `gravity_at(m)  m·s⁻² 🟢` (its `(m)` argument unit in the parens, its
-      `m·s⁻²` return unit in the column).
+- [ ] **Lists vars + procedures + subroutines + unannotated** — cursor
+      on `local_p = play` (inside `step`): the **Imports** section
+      shows a `from phys_constants` header with four indented rows:
+      - `play         kg·m⁻¹·s⁻²  🟢` (annotated variable)
+      - `gravity_at(m)  m·s⁻²     🟢` (callable, arg unit in parens,
+        return unit in the column)
+      - `set_play(Pa)  -          🟢` (subroutine — structural-no-unit
+        glyph, dimmed via `Comment`; distinct from `(none)`)
+      - `density       ?          🟡` (unannotated variable — the `?`
+        glyph appears dimmed, distinguishing it from a real unit)
 - [ ] **Cross-file navigation** — `<CR>` on `play` jumps to its
-      declaration (line 2); `<CR>` on `gravity_at(m)` jumps to the function
-      definition (line 5). Same file here; the source module's file in a
-      real project.
-- [ ] **Scoped + shadowed** — `grav` is **not** listed (the `only:` list
-      excludes it). Add `real :: play !< @unit{Pa}` as a local in `step`
-      and `play` drops from Imports (the local shadows it; it shows under
-      Scope instead).
+      declaration; `<CR>` on `gravity_at(m)` jumps to the function;
+      `<CR>` on `set_play(Pa)` jumps to the subroutine. Same file here;
+      another file in a real project.
+- [ ] **Scoped + shadowed** — `grav` is **not** listed (the `only:`
+      list excludes it). Add `real :: play !< @unit{Pa}` as a local in
+      `step` and `play` drops from Imports (the local shadows it; it
+      shows under Scope instead).
+- [ ] **Transitive imports — record actual behavior.** `phys_constants`
+      itself `use`s `phys_base`, which declares `g0`. Default Fortran
+      semantics re-export `g0` through `phys_constants`. Cursor inside
+      `step` and confirm whether `g0` appears in solver's Imports:
+      - **If yes** — DimFort follows transitive `use`. Note the unit
+        in the row (`m·s⁻²` 🟢).
+      - **If no** — DimFort treats `use` as non-transitive (only
+        symbols declared directly in `phys_constants` surface). File
+        a finding or document the intentional gap.
 - [ ] **Imports filter** — `:DimFortImportsFilter gravity` narrows the
-      Imports section to `gravity_at(m)`; `:DimFortImportsFilter play` to
-      `play`; no-arg clears it. It's independent of `:DimFortScopeFilter`
-      (Scope) — neither affects the other.
-- [ ] **Empty case** — cursor in `phys_constants` (imports nothing): the
-      Imports section shows `(none)`.
+      Imports section to `gravity_at(m)`; `:DimFortImportsFilter play`
+      narrows to `play` + `set_play(Pa)`; no-arg clears it. Independent
+      of `:DimFortScopeFilter` — neither affects the other.
+- [ ] **Empty case** — cursor in `phys_base` (which imports nothing):
+      the Imports section shows `(none)`.
