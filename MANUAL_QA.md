@@ -257,10 +257,10 @@ applies, so they don't pop in and out as the cursor moves.
 
 ### Panel — Scope filter
 
-- [ ] `:DimFortPanelFilter Pa` → the Scope section keeps only variables
+- [ ] `:DimFortScopeFilter Pa` → the Scope section keeps only variables
       whose name or unit matches `Pa` (e.g. `ref_pressure`, `q`), and
       shows a `Filter: "Pa"` header. Scopes with no surviving variables
-      are hidden. `:DimFortPanelFilter` with no argument clears it.
+      are hidden. `:DimFortScopeFilter` with no argument clears it.
 
 ## Scale checking (S001 / S002)
 
@@ -332,7 +332,7 @@ end module solver
       Scope instead).
 - [ ] **Imports filter** — `:DimFortImportsFilter gravity` narrows the
       Imports section to `gravity_at(m)`; `:DimFortImportsFilter play` to
-      `play`; no-arg clears it. It's independent of `:DimFortPanelFilter`
+      `play`; no-arg clears it. It's independent of `:DimFortScopeFilter`
       (Scope) — neither affects the other.
 - [ ] **Empty case** — cursor in `phys_constants` (imports nothing): the
       Imports section shows `(none)`.

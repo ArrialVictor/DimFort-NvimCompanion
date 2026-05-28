@@ -7,7 +7,7 @@
 --   3. Interactions — cross-site unit constraints for the symbol at cursor
 --   4. Actions     — code actions available at the cursor (apply with <CR>)
 --   5. Scope       — stacked enclosing-scope declaration tables, with a
---                    name/unit filter (:DimFortPanelFilter)
+--                    name/unit filter (:DimFortScopeFilter)
 --
 -- Rows are navigable: press <CR> on a declaration / diagnostic / site to
 -- jump to it (cross-file for interactions), or on an action to apply it.
@@ -87,10 +87,16 @@ local function new_canvas()
   return { rows = {}, targets = {} }
 end
 
-local function emit(cv, row, target)
+local function emit(cv, row, target, hl)
   table.insert(cv.rows, row)
   -- Store the target at the same index (may be nil — a hole is fine).
   cv.targets[#cv.rows] = target
+  -- Optional per-row highlight group (e.g. a diagnostic severity colour).
+  -- nil for ordinary rows.
+  if hl then
+    cv.hls = cv.hls or {}
+    cv.hls[#cv.rows] = hl
+  end
 end
 
 local function marker_for(node)
@@ -201,16 +207,16 @@ local function render_scope_vars(cv, scope, vars, depth)
   emit(cv, "")
   vars = (present(vars) and vars) or {}
   if #vars == 0 then
-    emit(cv, pad .. "  (no declarations)")
+    emit(cv, pad .. "  (no declarations)", nil, "Comment")
     return
   end
   -- Compute column widths over the *displayed* strings so the markers
   -- line up — "(none)" for unannotated counts toward the unit width.
   local name_w, unit_w = 4, 4
   for _, v in ipairs(vars) do
-    name_w = math.max(name_w, #v.name)
+    name_w = math.max(name_w, vim.fn.strdisplaywidth(v.name))
     local shown_unit = present(v.unit) and v.unit or "(none)"
-    unit_w = math.max(unit_w, #shown_unit)
+    unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit))
   end
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
@@ -225,9 +231,10 @@ local function render_scope_vars(cv, scope, vars, depth)
     else
       tail = " 🟢"
     end
-    emit(cv, pad .. string.format("  %4d  %-" .. name_w .. "s  %-" ..
-                                  unit_w .. "s%s",
-                                  v.line, v.name, unit, tail),
+    local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(v.name))
+    local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+    emit(cv, pad .. string.format("  %4d  ", v.line)
+         .. v.name .. name_pad .. "  " .. unit .. unit_pad .. tail,
          { line = v.line })
   end
 end
@@ -246,7 +253,7 @@ end
 local function render_scope(cv, payload)
   local q = (state.scope_filter or ""):lower()
   if q ~= "" then
-    emit(cv, 'Filter: "' .. state.scope_filter .. '"  (:DimFortPanelFilter to change)')
+    emit(cv, 'Filter: "' .. state.scope_filter .. '"  (:DimFortScopeFilter to change)')
     emit(cv, "")
   end
   if present(payload) and present(payload.scopes) and #payload.scopes > 0 then
@@ -265,7 +272,7 @@ local function render_scope(cv, payload)
       end
     end
     if q ~= "" and not shown_any then
-      emit(cv, '  (no variables match "' .. state.scope_filter .. '")')
+      emit(cv, '  (no variables match "' .. state.scope_filter .. '")', nil, "Comment")
     end
   elseif present(payload) then
     -- Back-compat with older servers that only send a single scope.
@@ -274,7 +281,7 @@ local function render_scope(cv, payload)
       or payload.routineVars
     render_scope_vars(cv, scope, scope_vars, 0)
   else
-    emit(cv, "Scope: (none)")
+    emit(cv, "Scope: (none)", nil, "Comment")
   end
 end
 
@@ -283,20 +290,25 @@ end
 local function render_diagnostics(cv, diags)
   diags = (present(diags) and diags) or {}
   if #diags == 0 then
-    emit(cv, "  (none)")
+    emit(cv, "  (none)", nil, "Comment")
     return
   end
   for _, d in ipairs(diags) do
     local sev = present(d.severity) and d.severity or "info"
     local glyph = (sev == "error") and "🔴"
       or (sev == "warning") and "🟡" or "🔵"
+    -- Colour the row by severity with Neovim's standard diagnostic highlight
+    -- groups, so it follows the colourscheme and matches native diagnostic
+    -- styling (virtual text / signs / underlines).
+    local hl = (sev == "error") and "DiagnosticError"
+      or (sev == "warning") and "DiagnosticWarn" or "DiagnosticInfo"
     local code = present(d.code) and d.code or "?"
     local msg = present(d.message) and d.message or ""
     emit(cv, "  " .. glyph .. " " .. code .. ": " .. msg, {
       line = d.line, column = d.column,
       end_line = present(d.endLine) and d.endLine or nil,
       end_column = present(d.endColumn) and d.endColumn or nil,
-    })
+    }, hl)
   end
 end
 
@@ -312,7 +324,7 @@ local INTERACTION_GROUPS = {
 
 local function render_interactions(cv, rep)
   if not present(rep) or not present(rep.points) or #rep.points == 0 then
-    emit(cv, "  (none)")
+    emit(cv, "  (none)", nil, "Comment")
     return
   end
   emit(cv, "  " .. (present(rep.symbol) and rep.symbol or "?"))
@@ -329,7 +341,7 @@ local function render_interactions(cv, rep)
     end
     emit(cv, "  " .. group.label)
     if #pts == 0 then
-      emit(cv, "      (none)")
+      emit(cv, "      (none)", nil, "Comment")
     else
       for _, p in ipairs(pts) do
         local loc = base_name(as_path(p.file)) .. ":" .. tostring(p.line)
@@ -339,7 +351,7 @@ local function render_interactions(cv, rep)
         local target = { file = p.file, line = p.line, column = p.column }
         emit(cv, "      " .. loc .. unit, target)
         if present(p.snippet) and p.snippet ~= "" then
-          emit(cv, "        " .. p.snippet, target)
+          emit(cv, "        " .. p.snippet, target, "Comment")
         end
       end
     end
@@ -352,7 +364,7 @@ end
 local function render_actions(cv, actions)
   actions = (present(actions) and actions) or {}
   if #actions == 0 then
-    emit(cv, "  (none)")
+    emit(cv, "  (none)", nil, "Comment")
     return
   end
   for _, a in ipairs(actions) do
@@ -402,9 +414,9 @@ local function render_imports(cv, imports)
   end
   if #kept == 0 then
     if q ~= "" and #imports > 0 then
-      emit(cv, '  (no imports match "' .. state.imports_filter .. '")')
+      emit(cv, '  (no imports match "' .. state.imports_filter .. '")', nil, "Comment")
     else
-      emit(cv, "  (none)")
+      emit(cv, "  (none)", nil, "Comment")
     end
     return
   end
@@ -422,8 +434,9 @@ local function render_imports(cv, imports)
     emit(cv, "  from " .. m)
     local name_w, unit_w = 4, 4
     for _, im in ipairs(groups[m]) do
-      name_w = math.max(name_w, #import_label(im))
-      unit_w = math.max(unit_w, #(present(im.unit) and im.unit or "(none)"))
+      name_w = math.max(name_w, vim.fn.strdisplaywidth(import_label(im)))
+      unit_w = math.max(unit_w,
+        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "(none)"))
     end
     for _, im in ipairs(groups[m]) do
       -- A subroutine (callable, no unit, not a missing annotation) reads
@@ -437,8 +450,10 @@ local function render_imports(cv, imports)
         unit = "(none)"
       end
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
-      emit(cv, string.format("      %-" .. name_w .. "s  %-" .. unit_w .. "s%s",
-                             import_label(im), unit, tail),
+      local label = import_label(im)
+      local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(label))
+      local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+      emit(cv, "      " .. label .. name_pad .. "  " .. unit .. unit_pad .. tail,
            { file = present(im.file) and im.file or nil,
              line = im.line, column = im.column })
     end
@@ -463,7 +478,7 @@ local function render_all()
       if present(payload) and present(payload.expression) then
         render_expression(c, payload.expression)
       else
-        emit(c, "  (none)")
+        emit(c, "  (none)", nil, "Comment")
       end
     end)
   end
@@ -517,6 +532,14 @@ local function paint(cv, stale)
     for i = 0, #cv.rows - 1 do
       vim.api.nvim_buf_set_extmark(state.buf, state.ns, i, 0, {
         end_line = i + 1, hl_group = "Comment",
+      })
+    end
+  else
+    -- Per-row highlights (e.g. diagnostic severity colours). Skipped while
+    -- stale, where the Comment tint takes over the whole panel.
+    for idx, hl in pairs(cv.hls or {}) do
+      vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, 0, {
+        end_line = idx, hl_group = hl,
       })
     end
   end
