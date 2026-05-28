@@ -7,6 +7,19 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [Unreleased]
+
+### Change: panel tree drops rule IDs; renders `(expected …)` on call-arg mismatches
+
+Tracks the server's wire-format rename `ExpressionNode.ruleId` →
+`ExpressionNode.expected`. The Expression section no longer trails
+rule-ID tags like `(R4.2)` on every node — debug noise that wasn't
+helpful for the target audience. In their place, when a call
+argument's resolved unit dimensionally differs from the callee's
+formal, the row now ends with `(expected <formal>)` so the reader
+sees what the call-site demanded without reading the diagnostic
+text.
+
 ## [0.2.0] — 2026-05-28
 
 ### Changed
