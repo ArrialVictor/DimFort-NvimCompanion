@@ -110,15 +110,15 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
       product `c_sound * t` (line 18) → the single line `c_sound * t : m`.
 - [ ] **Detailed** — `:DimFortCycleHover` once. `K` on `c_sound * t` now
       breaks down across lines (each operand with its unit); on the call
-      `dynamic_pressure` (line 21) the dimensional-signature hover
-      (header `dynamic_pressure: (m·s⁻¹) → kg·m⁻¹·s⁻²` + argument row
-      `0.5 * c_sound : m·s⁻¹ 🟢`) gains a sub-tree under the computed
-      argument (`0.5 : 1`, `c_sound : m·s⁻¹`). That's the difference from
-      Short, which shows the argument row without the sub-tree.
+      `dynamic_pressure` (line 21) the call hover renders the same tree
+      shape as the side panel: root `dynamic_pressure(0.5 * c_sound) :
+      kg·m⁻¹·s⁻² 🟢` + child row `0.5 * c_sound : m·s⁻¹ 🟢` + sub-tree
+      (`0.5 : 1`, `c_sound : m·s⁻¹`). Short shows root + the argument
+      row only.
 - [ ] **Subroutine call** — still in `detailed`, `K` on the call name
-      `scale_pressure` (line 22): same dimensional-signature layout as a
-      function call, **but no `→ ret` tail** (subroutines don't return).
-      Header `scale_pressure: (kg·m⁻¹·s⁻²)` + argument row
+      `scale_pressure` (line 22): same tree layout as a function call,
+      **but the root has no return unit** so it reads `call
+      scale_pressure(…) : ? 🟡`. Argument row
       `2.0 * ref_pressure : kg·m⁻¹·s⁻² 🟢` with the sub-tree beneath.
 - [ ] `:DimFortCycleHover` once more → back to `disabled`.
 
