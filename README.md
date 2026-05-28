@@ -85,6 +85,11 @@ require("dimfort").setup({
   -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
   hover = "short",                              -- "disabled" | "short" | "detailed"
 
+  -- Scale/magnitude checking (S001 multiplicative, S002 affine-offset).
+  -- "auto" defers to the project .dimfort.toml [scale] enabled;
+  -- "on"/"off" override it. Cycle with :DimFortCycleScale.
+  scale_mode = "auto",                          -- "auto" | "on" | "off"
+
   -- Content-hash cache (https://github.com/ArrialVictor/DimFort/blob/main/docs/usage.md#content-hash-cache).
   cache_mode = "read-write",                    -- "off" | "read-only" | "read-write"
   cache_dir  = "",                              -- "" = .dimfort-cache/ under workspace root
@@ -122,25 +127,49 @@ from your own autocommand or keymap.
 | `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
+| `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
+| `:DimFortScopeFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
+| `:DimFortImportsFilter [query]`          | Filter the panel's Imports section by name/unit/module (no argument clears). |
 
 ## Side panel
 
 `:DimFortTogglePanel` opens a persistent split (right by default) that
-follows the cursor and shows two stacked sections:
+follows the cursor. At full feature parity with the VSCode companion, it
+shows six stacked sections (the volatile middle three appear in the
+`both` layout):
 
 - **Expression** — the unit-algebra tree for the expression under the
   cursor: each node with its resolved unit, the rule that produced it,
   and a 🟢 / 🟡 / 🔴 marker, columns aligned. Same content as the
   Detailed hover, but it stays visible while you edit — handy for
   debugging a mismatch or talking through code with someone.
+- **Diagnostics** — DimFort diagnostics on the cursor line, with the
+  🔴 / 🟡 / 🔵 severity-circle vocabulary (info-level diagnostics such as
+  P001 unparsed regions read the same as the rest).
+- **Interactions** — cross-site unit constraints for the symbol under
+  the cursor (the `dimfort interactions` query): the X001 conflict, if
+  any, then the Declaration / Write / Read / Undetermined-read groups,
+  each site showing its location, unit, and source snippet.
+- **Actions** — the code actions available at the cursor (Add `@unit{}`
+  / extract literal to a PARAMETER); press `<CR>` on one to apply it.
 - **Scope** — the declarations of every *enclosing* scope, stacked
   outermost-first and indented by nesting (a module's declarations,
   then a contained subroutine's locals). Each variable is marked 🟢
   (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
-  in your annotation coverage jump out.
+  in your annotation coverage jump out. `:DimFortScopeFilter <query>`
+  narrows the list to variables whose name or unit matches.
+- **Imports** — variables and procedures a `use` clause brings into scope
+  (usable here but declared elsewhere), grouped by source module under a
+  `from <module>` header (functions read as `name(argunits)`, showing
+  their argument + return units, e.g. `force(kg)`). Rows navigate cross-file to where the imported symbol — and
+  its `@unit{}` — is declared. `:DimFortImportsFilter` narrows it.
+
+Press `<CR>` on any declaration, diagnostic, interaction-site, or import
+row to jump to it (cross-file for interaction sites and imports); the
+file-wide diagnostic counts pin the footer.
 
 On by default (opens on attach); set `panel_enabled = false` to keep it
 closed and open it on demand with the toggle command. Width is fixed

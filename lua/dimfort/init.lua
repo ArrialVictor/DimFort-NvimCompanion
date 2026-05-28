@@ -16,6 +16,7 @@ local M = {}
 ---@field code_actions_enabled boolean
 ---@field goto_definition_enabled boolean
 ---@field hover "disabled"|"short"|"detailed"  -- hover verbosity (panel unaffected)
+---@field scale_mode "auto"|"on"|"off"        -- scale checking; auto = defer to .dimfort.toml
 ---@field cache_mode DimFortCacheMode
 ---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
 ---@field panel_enabled boolean                -- open side panel on attach
@@ -39,6 +40,7 @@ local defaults = {
   code_actions_enabled = true,
   goto_definition_enabled = true,
   hover = "short",                   -- one-line `name : unit` on hover
+  scale_mode = "auto",               -- "auto" defers to .dimfort.toml; "on"/"off" override
   cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
   panel_enabled = true,              -- open the side panel on attach
@@ -80,6 +82,14 @@ local function init_options()
   -- shadow the server's default-cache-dir fallback.
   if M.config.cache_dir and M.config.cache_dir ~= "" then
     opts.cacheDir = M.config.cache_dir
+  end
+  -- Scale checking is tri-state: "auto" omits scaleMode so the server's
+  -- .dimfort.toml [scale] enabled wins; "on"/"off" send an explicit
+  -- boolean that overrides the toml for the session.
+  if M.config.scale_mode == "on" then
+    opts.scaleMode = true
+  elseif M.config.scale_mode == "off" then
+    opts.scaleMode = false
   end
   return opts
 end
@@ -323,6 +333,13 @@ M.toggle_cache = function()
   cycle("cache_mode", "cache", { "off", "read-write" })
 end
 
+-- Scale checking is tri-state: "auto" defers to the project .dimfort.toml
+-- ([scale] enabled), "on"/"off" override it for the session. Cycled
+-- auto -> on -> off; restarts so the new scaleMode reaches the server.
+M.cycle_scale = function()
+  cycle("scale_mode", "scale checking", { "auto", "on", "off" })
+end
+
 -- Print the current feature flags + client state. Bound to
 -- :DimFortStatus, so users don't have to count toggles to figure out
 -- where they are.
@@ -337,6 +354,7 @@ function M.status()
     string.format("  go-to-definition    : %s", flag(M.config.goto_definition_enabled)),
     string.format("  hover               : %s", M.config.hover),
     string.format("  cache               : %s", M.config.cache_mode),
+    string.format("  scale checking      : %s", M.config.scale_mode),
     string.format("  cache dir           : %s",
                   (M.config.cache_dir == "") and "(default)" or M.config.cache_dir),
     string.format("  max workset size    : %d", M.config.max_workset_size),
@@ -453,6 +471,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortToggleCache",
     function() M.toggle_cache() end,
     { desc = "DimFort: toggle content-hash cache between off and read-write" })
+  vim.api.nvim_create_user_command("DimFortCycleScale",
+    function() M.cycle_scale() end,
+    { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to .dimfort.toml" })
 
   -- Side panel — opt-in persistent split with the unit-algebra tree
   -- and routine-vars table. Off by default; see
@@ -477,6 +498,20 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortPanelRefresh",
     function() panel.refresh() end,
     { desc = "DimFort: force-refresh the side panel" })
+  vim.api.nvim_create_user_command("DimFortScopeFilter",
+    function(args) panel.set_filter(args.args) end,
+    {
+      nargs = "?",
+      desc = "DimFort: filter the panel's Scope section by name/unit "
+        .. "(no argument clears it)",
+    })
+  vim.api.nvim_create_user_command("DimFortImportsFilter",
+    function(args) panel.set_imports_filter(args.args) end,
+    {
+      nargs = "?",
+      desc = "DimFort: filter the panel's Imports section by name/unit/"
+        .. "module (no argument clears it)",
+    })
   if M.config.panel_enabled then
     -- Open after the LSP attach has had time to settle.
     vim.defer_fn(function() panel.open() end, 500)

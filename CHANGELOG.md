@@ -18,22 +18,56 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ### Added
 
-- **Side panel** (`:DimFortTogglePanel`) — a persistent split showing
-  two stacked sections, cursor-following with a debounce:
+- **Scale-checking toggle** — a new `scale_mode` setting
+  (`"auto"` / `"on"` / `"off"`, default `"auto"`) and a
+  `:DimFortCycleScale` command. `"auto"` defers to the project's
+  `.dimfort.toml` `[scale] enabled`; `"on"`/`"off"` force the magnitude
+  layer (S001/S002) for the session, overriding the toml. Shown in
+  `:DimFortStatus`.
+- **Side panel** (`:DimFortTogglePanel`) — a persistent split, cursor-
+  following with a debounce, at full feature parity with the VSCode
+  companion. Six stacked sections (the volatile middle three show in the
+  `both` layout):
   - **Expression** — the unit-algebra tree for the expression under
     the cursor (the same content as the Detailed hover, but it stays
     put while you edit). Markers and units align in columns.
+  - **Diagnostics** — DimFort diagnostics on the cursor line, with the
+    🔴/🟡/🔵 severity-circle vocabulary (info-level diagnostics such as
+    P001 unparsed regions read the same as the rest). Each row is
+    severity-coloured with Neovim's standard `DiagnosticError` /
+    `DiagnosticWarn` / `DiagnosticInfo` groups, so it follows the
+    colourscheme and matches native diagnostic styling.
+  - **Interactions** — cross-site unit constraints for the symbol under
+    the cursor (the `dimfort interactions` query): the X001 conflict, if
+    any, then the Declaration / Write / Read / Undetermined-read groups,
+    each site showing its location, unit, and source snippet (the snippet
+    dimmed with the `Comment` highlight). Driven by the
+    `dimfort/interactions` LSP request.
+  - Empty-state placeholders (`(none)` / `(no … match)`) across all
+    sections are dimmed with `Comment`, matching the VSCode panel.
+  - **Actions** — the code actions available at the cursor (Add `@unit{}`
+    / extract literal to a PARAMETER), applied in place with `<CR>`.
   - **Scope** — the declarations of every *enclosing* scope, stacked
     outermost-first and indented by nesting depth (e.g. a module's
     declarations, then a contained subroutine's locals). Each row is
-    marked 🟢 (annotated) or 🟡 (unannotated). Driven by the new
-    `dimfort/panelInfo` LSP request.
+    marked 🟢 (annotated), 🟡 (unannotated), or 🔴 (unparseable
+    annotation). A name/unit filter (`:DimFortScopeFilter`) narrows long
+    declaration lists. Driven by the `dimfort/panelInfo` LSP request.
+  - **Imports** — variables **and procedures** a `use` clause brings into
+    scope (usable here but declared elsewhere), grouped by source module
+    under a `from <module>` header (functions read as `name(argunits)`,
+    showing their argument + return units, e.g. `force(kg)`). `<CR>` navigates cross-file to where the imported
+    symbol — and its `@unit{}` — is declared. Has its own name/unit/
+    module filter, `:DimFortImportsFilter`.
+  - **Row navigation** — `<CR>` on a declaration, diagnostic, interaction
+    site, or import jumps to it (cross-file for interactions and imports);
+    the file-wide diagnostic counts pin the footer.
   - Settings: `panel_enabled` (default `false`), `panel_layout`
     (`both` / `expression` / `routine`), `panel_position`
     (`right` / `left` / `bottom`), `panel_width_fraction` /
     `panel_width_cols`, `panel_debounce_ms`.
   - Commands: `:DimFortTogglePanel`, `:DimFortPanelLayout {kind}`,
-    `:DimFortPanelRefresh`.
+    `:DimFortPanelRefresh`, `:DimFortScopeFilter [query]`.
 
 ## [0.1.1] — 2026-05-22
 
