@@ -179,9 +179,20 @@ local function render_expression(cv, node)
   for _, e in ipairs(entries) do
     local tree_pad = string.rep(" ", tree_w - vim.fn.strdisplaywidth(e.tree))
     local mid
+    local ranges
     if e.unit then
       local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(e.unit))
       mid = " : " .. e.unit .. unit_pad
+      -- Dim absence-of-information glyphs ("?" = unknown, "-" =
+      -- structural-no-unit) so real units pop. The unit cell starts at
+      -- the byte offset of (tree + tree_pad + " : "). Pads are ASCII
+      -- spaces so byte length = display width for that segment; the
+      -- tree label itself uses Unicode box-drawing chars, so we sum
+      -- their BYTE lengths to get the byte column.
+      if e.unit == "?" or e.unit == "-" then
+        local unit_col = #e.tree + #tree_pad + 3  -- 3 = #" : "
+        ranges = { { col = unit_col, end_col = unit_col + #e.unit, hl = "Comment" } }
+      end
     elseif unit_w > 0 then
       -- No unit on this row, but other rows have one — pad the whole
       -- ``: unit`` block with spaces so the marker still lines up.
@@ -189,7 +200,8 @@ local function render_expression(cv, node)
     else
       mid = ""
     end
-    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.extra)
+    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.extra,
+         nil, nil, ranges)
   end
 end
 
@@ -363,10 +375,17 @@ local function render_interactions(cv, rep)
       for _, p in ipairs(pts) do
         local loc = base_name(as_path(p.file)) .. ":" .. tostring(p.line)
         -- The Undetermined group has no derived unit by definition.
-        local unit = (group.kind ~= "uses" and present(p.unit))
-          and ("   " .. p.unit) or ""
+        local has_unit = group.kind ~= "uses" and present(p.unit)
+        local unit = has_unit and ("   " .. p.unit) or ""
         local target = { file = p.file, line = p.line, column = p.column }
-        emit(cv, "      " .. loc .. unit, target)
+        -- Dim absence-of-information glyphs ("?" / "-") so real units pop.
+        -- The unit starts at byte offset 6 ("      ") + #loc + 3 ("   ").
+        local ranges
+        if has_unit and (p.unit == "?" or p.unit == "-") then
+          local unit_col = 6 + #loc + 3
+          ranges = { { col = unit_col, end_col = unit_col + #p.unit, hl = "Comment" } }
+        end
+        emit(cv, "      " .. loc .. unit, target, nil, ranges)
         if present(p.snippet) and p.snippet ~= "" then
           emit(cv, "        " .. p.snippet, target, "Comment")
         end
