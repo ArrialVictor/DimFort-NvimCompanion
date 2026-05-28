@@ -9,14 +9,16 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
-### Polish: dim `?` and `-` glyphs in panel Scope / Imports
+### Polish: dim `?` and `-` glyphs across every panel section
 
-Absence-of-information glyphs (`?` for unknown, `-` for structural-
-no-unit) now render with the `Comment` highlight in the panel's
-Scope and Imports sections, so real units pop visually. The `emit`
-helper grows an optional fifth `ranges` arg (per-byte-range
-highlights inside a row); used here, available for future per-cell
-styling. Expression-tree dimming deferred.
+Absence-of-information glyphs (`?` for unknown, `-` for
+structural-no-unit) now render with the `Comment` highlight in
+**every** panel section that shows units — Scope, Imports,
+Expression tree, and Interactions. Three glyphs, three meanings,
+consistent visual treatment everywhere. The `emit` helper grew an
+optional fifth `ranges` arg (per-byte-range highlights inside a
+row) to support the Expression-tree case where labels have
+variable Unicode width.
 
 ### Change: scope / import unannotated vars render `?`, not `(none)`
 
