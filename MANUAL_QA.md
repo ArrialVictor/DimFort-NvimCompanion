@@ -184,16 +184,29 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
       `@unit_assume` directive asserts the result's unit and
       suppresses `D1.4`; in its place a **U020 INFO** appears,
       acknowledging the assumption (informational, not a problem).
-      The hover root reads
-      `rho_brandes = … : -  🔵  (assumed: empirical-fit Brandes2007)` —
-      the new `🔵` marker (a fourth tier between 🟢 and 🟡 — see
-      DimFort design/markers.md §4.6) signals that the row was
-      accepted via the directive, and the row tail surfaces the
-      mandatory reason. The child markers in the RHS sub-tree are
-      *not* propagated up through this row — the directive's
-      contract is "trust me on the unit, ignore the inside," so an
-      unresolved leaf like `(-0.922)` doesn't pull the assignment
-      marker to 🟡.
+      The hover reads:
+
+      ```
+      🟢 DimFort
+      rho_brandes = … : -                          🟢
+      ├── rho_brandes                : kg·m⁻³     🟢
+      └── 1.e3 * 0.178 * (d * 2.0 * 1000.0)**(-0.922)
+                                     : kg·m⁻³     🔵  (assumed: empirical-fit Brandes2007)
+          ├── …                        (RHS sub-tree with 🟡 leaves
+          └── …                         from the unresolved (-0.922))
+      ```
+
+      The 🔵 is a **per-row overlay** (NOT a severity tier — see
+      DimFort design/markers.md §4.6) painted on the RHS row, the
+      directive's syntactic subject. The RHS row's unit column shows
+      the **asserted** unit `kg·m⁻³`, not the computed `?`. The
+      assignment row stays **🟢** because the homogeneity check
+      passes (LHS `kg·m⁻³` matches the asserted RHS `kg·m⁻³`); the
+      hover header is `🟢 DimFort`. The 🔵 surfaces only in the
+      body, where the assertion lives. The RHS sub-tree still shows
+      its underlying algebra (with 🟡 on the `(-0.922)` unresolved
+      leaf) for transparency, but doesn't propagate up to the
+      assignment row.
       Common in physics: Tetens (saturation vapour pressure),
       Magnus, Buck, parameterised turbulence closures, etc. The
       assumed-unit registry lives in

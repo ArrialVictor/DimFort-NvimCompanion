@@ -9,16 +9,25 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
-### Polish: render `assumed` marker (🔵) + `(assumed: <reason>)` tail
+### Polish: render `assumed` marker (🔵) + `(assumed: <reason>)` tail on the RHS row
 
 Tracks the new server-side `ExpressionNode.marker = "assumed"` value
 and `ExpressionNode.assumed: string | null` field. When the server
 flags a row as accepted via `@unit_assume{<unit> : <reason>}`, the
 panel paints 🔵 and appends `(assumed: <reason>)` to the row tail
-(same column as `(expected …)`; both can coexist). Pre-0.2.1
-companions would fall through to their default marker glyph if
-they happened to receive `"assumed"`; this update makes the
-positive signal visible. See DimFort design/markers.md §4.6.
+(same column as `(expected …)`; both can coexist).
+
+The overlay lives on the **RHS row** of the assignment — the
+directive's syntactic subject — not on the assignment row itself.
+The companion needs no code changes for this routing (the server
+sets `marker`/`assumed` on the RHS child of the assignment
+payload); this entry tracks the wire-format expectation.
+
+🔵 is a per-row overlay, NOT a severity tier — it doesn't
+propagate up. The assignment row stays `marker: "ok"` (🟢) when
+the homogeneity check passes; H001 still fires (🔴) if the
+declared LHS unit conflicts with the asserted RHS unit. See
+DimFort design/markers.md §4.6.
 
 ### Polish: dim `?` and `-` glyphs across every panel section
 
