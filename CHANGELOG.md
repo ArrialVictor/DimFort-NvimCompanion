@@ -18,7 +18,9 @@ helpful for the target audience. In their place, when a call
 argument's resolved unit dimensionally differs from the callee's
 formal, the row now ends with `(expected <formal>)` so the reader
 sees what the call-site demanded without reading the diagnostic
-text.
+text. Mismatched argument rows paint 🟡 (the new 🟡-on-`expected`
+override, server-side; see DimFort design/markers.md §4.4), so a
+row with `(expected …)` will never read `marker: "ok"`.
 
 ## [0.2.0] — 2026-05-28
 
