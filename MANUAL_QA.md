@@ -34,7 +34,7 @@ contains
     real :: d          !< @unit{m}
     real :: bogus      !< @unit{kg}
     real :: t_celsius                  ! no annotation -> U005
-    d         = c_sound * t            ! OK:   m = (m/s)*s
+    d         = c_sound * t            ! OK:   m = (m·s⁻¹)*s
     bogus     = c_sound * t            ! H001: kg = m  (mismatch)
     t_celsius = t - 273.15             ! H010: bare 273.15 literal
     ref_pressure = dynamic_pressure(0.5 * c_sound)
@@ -106,13 +106,13 @@ Hover defaults to **`short`** (one cursor-following unit surface beside the
 panel). `:DimFortCycleHover` cycles `disabled → short → detailed` (restarting
 each time). Hover with `K` (`vim.lsp.buf.hover()`).
 
-- [ ] **Short (default)** — `K` on `c_sound` → `c_sound : m/s`; on the
+- [ ] **Short (default)** — `K` on `c_sound` → `c_sound : m·s⁻¹`; on the
       product `c_sound * t` (line 18) → the single line `c_sound * t : m`.
 - [ ] **Detailed** — `:DimFortCycleHover` once. `K` on `c_sound * t` now
       breaks down across lines (each operand with its unit); on the call
       `dynamic_pressure` (line 21) the formal-vs-actual pairing
-      (`v : m/s ◂ 0.5 * c_sound : m/s`) gains a sub-tree under the computed
-      argument (`0.5 : 1`, `c_sound : m/s`) — that's the difference from
+      (`v : m·s⁻¹ ◂ 0.5 * c_sound : m·s⁻¹`) gains a sub-tree under the computed
+      argument (`0.5 : 1`, `c_sound : m·s⁻¹`) — that's the difference from
       Short, which shows the pairing row only.
 - [ ] **Subroutine call** — still in `detailed`, `K` on the call name
       `scale_pressure` (line 22): same formal-vs-actual layout as a
@@ -123,7 +123,7 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
 
 ## Inlay hints
 
-- [ ] `:DimFortToggleInlayHints` → `[m/s]`-style virtual text appears
+- [ ] `:DimFortToggleInlayHints` → `[m·s⁻¹]`-style virtual text appears
       after variable uses; run it again → it disappears.
 
 ## Code actions
@@ -157,11 +157,11 @@ it refreshes.
       ```
       Expression
 
-      bogus = c_sound * t        🔴
-      ├── bogus           : kg   🟢
-      └── c_sound * t     : m    🟢 (R4.2)
-          ├── c_sound     : m/s  🟢
-          └── t           : s    🟢
+      bogus = c_sound * t      🔴
+      ├── bogus       : kg     🟢
+      └── c_sound * t : m      🟢 (R4.2)
+          ├── c_sound : m·s⁻¹  🟢
+          └── t       : s      🟢
       ```
 
 - [ ] **Multiplication chain** — cursor on the **`=`** in line 10
@@ -169,15 +169,15 @@ it refreshes.
       its rule:
 
       ```
-      q = 0.5 * rho * v * v              🟢
-      ├── q                 : kg/(m×s²)  🟢
-      └── 0.5 * rho * v * v : kg/(m×s²)  🟢 (R4.2)
-          ├── 0.5 * rho * v : kg/(m²×s)  🟢 (R4.2)
-          │   ├── 0.5 * rho : kg/m³      🟢 (R4.2)
-          │   │   ├── 0.5   : 1          🟢
-          │   │   └── rho   : kg/m³      🟢
-          │   └── v         : m/s        🟢
-          └── v             : m/s        🟢
+      q = 0.5 * rho * v * v               🟢
+      ├── q                 : kg·m⁻¹·s⁻²  🟢
+      └── 0.5 * rho * v * v : kg·m⁻¹·s⁻²  🟢 (R4.2)
+          ├── 0.5 * rho * v : kg·m⁻²·s⁻¹  🟢 (R4.2)
+          │   ├── 0.5 * rho : kg·m⁻³      🟢 (R4.2)
+          │   │   ├── 0.5   : 1           🟢
+          │   │   └── rho   : kg·m⁻³      🟢
+          │   └── v         : m·s⁻¹       🟢
+          └── v             : m·s⁻¹       🟢
       ```
 
 - [ ] **Function call with arguments** — cursor on the call name
@@ -185,10 +185,10 @@ it refreshes.
       beneath the call:
 
       ```
-      dynamic_pressure(0.5 * c_sound) : kg/(m×s²)  🟢
-      └── 0.5 * c_sound               : m/s        🟢 (R4.2)
-          ├── 0.5                     : 1          🟢
-          └── c_sound                 : m/s        🟢
+      dynamic_pressure(0.5 * c_sound) : kg·m⁻¹·s⁻²  🟢
+      └── 0.5 * c_sound               : m·s⁻¹       🟢 (R4.2)
+          ├── 0.5                     : 1           🟢
+          └── c_sound                 : m·s⁻¹       🟢
       ```
 
 - [ ] **Subroutine call** — cursor on the call name `scale_pressure` in
@@ -197,9 +197,9 @@ it refreshes.
 
       ```
       call scale_pressure(2.0 * ref_pressure)              🟡
-      └── 2.0 * ref_pressure                  : kg/(m×s²)  🟢 (R4.2)
-          ├── 2.0                             : 1          🟢
-          └── ref_pressure                    : kg/(m×s²)  🟢
+      └── 2.0 * ref_pressure                  : kg·m⁻¹·s⁻²  🟢 (R4.2)
+          ├── 2.0                             : 1           🟢
+          └── ref_pressure                    : kg·m⁻¹·s⁻²  🟢
       ```
 
 - [ ] **Stacked scopes** — with the cursor in line 10 (inside the
@@ -210,14 +210,14 @@ it refreshes.
       ```
       Module: qa_mod
 
-        2     c_sound       m/s  🟢
-        3     ref_pressure  Pa   🟢
+        2     c_sound       m·s⁻¹ 🟢
+        3     ref_pressure  Pa    🟢
 
         Function: dynamic_pressure
 
-          6     v     m/s    🟢
-          7     q     Pa     🟢
-          8     rho   kg/m^3 🟢
+          6     v    m·s⁻¹  🟢
+          7     q    Pa     🟢
+          8     rho  kg/m^3 🟢
       ```
 
 - [ ] **Markers** — in `checks` (e.g. cursor in line 19), `t_celsius`
@@ -243,7 +243,7 @@ applies, so they don't pop in and out as the cursor moves.
       **Declaration** group (line 2) and **Read** group (its use sites),
       each row `file:line   unit` with the source snippet beneath. Press
       `<CR>` on a site → jumps there (cross-file when the site is in
-      another file). Because `c_sound` is read as `m/s` at lines 18/21 but
+      another file). Because `c_sound` is read as `m·s⁻¹` at lines 18/21 but
       as `kg/s` at line 19 (`bogus` is `kg`), a **🔴 X001** conflict row
       sits at the top.
 - [ ] **Actions** — cursor on `t_celsius` (line 17) → the Actions section
@@ -298,11 +298,11 @@ second `use`s the first):
 ```fortran
 module phys_constants
   real :: play   !< @unit{Pa}
-  real :: grav   !< @unit{m/s^2}
+  real :: grav   !< @unit{m·s⁻¹^2}
 contains
   function gravity_at(h) result(g)
     real, intent(in) :: h   !< @unit{m}
-    real             :: g   !< @unit{m/s^2}
+    real             :: g   !< @unit{m·s⁻¹^2}
     g = grav
   end function gravity_at
 end module phys_constants
@@ -319,9 +319,9 @@ end module solver
 
 - [ ] **Lists vars + procedures** — cursor on `local_p = play` (inside
       `step`): the **Imports** section shows a `from phys_constants` header
-      with two indented rows — `play  kg/(m×s²) 🟢` and
-      `gravity_at(m)  m/s² 🟢` (its `(m)` argument unit in the parens, its
-      `m/s²` return unit in the column).
+      with two indented rows — `play  kg·m⁻¹·s⁻² 🟢` and
+      `gravity_at(m)  m·s⁻² 🟢` (its `(m)` argument unit in the parens, its
+      `m·s⁻²` return unit in the column).
 - [ ] **Cross-file navigation** — `<CR>` on `play` jumps to its
       declaration (line 2); `<CR>` on `gravity_at(m)` jumps to the function
       definition (line 5). Same file here; the source module's file in a
