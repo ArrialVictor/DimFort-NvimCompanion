@@ -142,8 +142,9 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
       `c_sound : m·s⁻¹`). Short shows root + the argument row only.
 - [ ] **Subroutine call** — still in `detailed`, `K` on the call name
       `scale_pressure` (line 39): same tree layout as a function call,
-      **but the root has no return unit** so it reads `call
-      scale_pressure(…) : ? 🟡`. Argument row
+      **but the root carries `-`** (structural-no-unit — subroutines
+      have no return unit *by design*) and a clean call paints 🟢:
+      `call scale_pressure(…) : -  🟢`. Argument row
       `2.0 * ref_pressure : kg·m⁻¹·s⁻² 🟢` with the sub-tree beneath.
 - [ ] **Intrinsics — same tree as user calls.** Still in `detailed`:
       - `K` on `log` (line 29): root row `log(ref_pressure) : LOG(Pa)`
