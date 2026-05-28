@@ -138,15 +138,15 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
     next_prefix = prefix .. "│   "
   end
   local has_unit = present(node.unit)
-  local rule_id = present(node.ruleId) and node.ruleId or nil
-  local rule = rule_id and (" (" .. rule_id .. ")") or ""
+  local expected = present(node.expected) and node.expected or nil
+  local extra = expected and (" (expected " .. expected .. ")") or ""
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
   table.insert(entries, {
     tree = prefix .. connector .. label,
     unit = has_unit and node.unit or nil,
     mark = mark,
-    rule = rule,
+    extra = extra,
   })
   local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
@@ -181,7 +181,7 @@ local function render_expression(cv, node)
     else
       mid = ""
     end
-    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.rule)
+    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.extra)
   end
 end
 
