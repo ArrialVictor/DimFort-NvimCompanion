@@ -131,7 +131,7 @@ from your own autocommand or keymap.
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
-| `:DimFortPanelFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
+| `:DimFortScopeFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
 | `:DimFortImportsFilter [query]`          | Filter the panel's Imports section by name/unit/module (no argument clears). |
 
 ## Side panel
@@ -159,7 +159,7 @@ shows six stacked sections (the volatile middle three appear in the
   outermost-first and indented by nesting (a module's declarations,
   then a contained subroutine's locals). Each variable is marked 🟢
   (annotated), 🟡 (unannotated), or 🔴 (unparseable annotation), so gaps
-  in your annotation coverage jump out. `:DimFortPanelFilter <query>`
+  in your annotation coverage jump out. `:DimFortScopeFilter <query>`
   narrows the list to variables whose name or unit matches.
 - **Imports** — variables and procedures a `use` clause brings into scope
   (usable here but declared elsewhere), grouped by source module under a

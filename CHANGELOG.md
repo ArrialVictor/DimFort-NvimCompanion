@@ -33,19 +33,25 @@ below cover client-side changes only (commands, defaults, packaging).
     put while you edit). Markers and units align in columns.
   - **Diagnostics** — DimFort diagnostics on the cursor line, with the
     🔴/🟡/🔵 severity-circle vocabulary (info-level diagnostics such as
-    P001 unparsed regions read the same as the rest).
+    P001 unparsed regions read the same as the rest). Each row is
+    severity-coloured with Neovim's standard `DiagnosticError` /
+    `DiagnosticWarn` / `DiagnosticInfo` groups, so it follows the
+    colourscheme and matches native diagnostic styling.
   - **Interactions** — cross-site unit constraints for the symbol under
     the cursor (the `dimfort interactions` query): the X001 conflict, if
     any, then the Declaration / Write / Read / Undetermined-read groups,
-    each site showing its location, unit, and source snippet. Driven by
-    the `dimfort/interactions` LSP request.
+    each site showing its location, unit, and source snippet (the snippet
+    dimmed with the `Comment` highlight). Driven by the
+    `dimfort/interactions` LSP request.
+  - Empty-state placeholders (`(none)` / `(no … match)`) across all
+    sections are dimmed with `Comment`, matching the VSCode panel.
   - **Actions** — the code actions available at the cursor (Add `@unit{}`
     / extract literal to a PARAMETER), applied in place with `<CR>`.
   - **Scope** — the declarations of every *enclosing* scope, stacked
     outermost-first and indented by nesting depth (e.g. a module's
     declarations, then a contained subroutine's locals). Each row is
     marked 🟢 (annotated), 🟡 (unannotated), or 🔴 (unparseable
-    annotation). A name/unit filter (`:DimFortPanelFilter`) narrows long
+    annotation). A name/unit filter (`:DimFortScopeFilter`) narrows long
     declaration lists. Driven by the `dimfort/panelInfo` LSP request.
   - **Imports** — variables **and procedures** a `use` clause brings into
     scope (usable here but declared elsewhere), grouped by source module
@@ -61,7 +67,7 @@ below cover client-side changes only (commands, defaults, packaging).
     (`right` / `left` / `bottom`), `panel_width_fraction` /
     `panel_width_cols`, `panel_debounce_ms`.
   - Commands: `:DimFortTogglePanel`, `:DimFortPanelLayout {kind}`,
-    `:DimFortPanelRefresh`, `:DimFortPanelFilter [query]`.
+    `:DimFortPanelRefresh`, `:DimFortScopeFilter [query]`.
 
 ## [0.1.1] — 2026-05-22
 

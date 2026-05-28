@@ -498,7 +498,7 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortPanelRefresh",
     function() panel.refresh() end,
     { desc = "DimFort: force-refresh the side panel" })
-  vim.api.nvim_create_user_command("DimFortPanelFilter",
+  vim.api.nvim_create_user_command("DimFortScopeFilter",
     function(args) panel.set_filter(args.args) end,
     {
       nargs = "?",
