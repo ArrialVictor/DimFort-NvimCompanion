@@ -332,7 +332,7 @@ local function render_interactions(cv, rep)
   for _, c in ipairs((present(rep.conflicts) and rep.conflicts) or {}) do
     emit(cv, "  🔴 " .. val(c.code, "?") .. ": " .. val(c.message, ""), {
       file = c.file, line = c.line, column = c.column,
-    })
+    }, "DiagnosticError")
   end
   for _, group in ipairs(INTERACTION_GROUPS) do
     local pts = {}
