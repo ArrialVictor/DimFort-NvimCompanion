@@ -1,14 +1,24 @@
 -- DimFort side panel for Neovim.
 --
--- Persistent split window showing two stacked sections:
---   1. Expression tree under the cursor (live, debounced cursor-follow)
---   2. Routine variables table (every declared name + unit)
+-- Persistent split window, cursor-following with a debounce. Mirrors the
+-- VSCode companion's panel — five stacked sections:
+--   1. Expression  — unit-algebra tree under the cursor
+--   2. Diagnostics — DimFort diagnostics on the cursor line (🔴/🟡/🔵)
+--   3. Interactions — cross-site unit constraints for the symbol at cursor
+--   4. Actions     — code actions available at the cursor (apply with <CR>)
+--   5. Scope       — stacked enclosing-scope declaration tables, with a
+--                    name/unit filter (:DimFortScopeFilter)
 --
--- Off by default; toggle via :DimFortTogglePanel. Layout switches
--- via :DimFortPanelLayout {both|expression|routine}.
+-- Rows are navigable: press <CR> on a declaration / diagnostic / site to
+-- jump to it (cross-file for interactions), or on an action to apply it.
 --
--- Wire protocol: ``dimfort/panelInfo`` LSP request — see
--- DimFort/docs/design/panel-info.md.
+-- Off by default; toggle via :DimFortTogglePanel. Layout switches via
+-- :DimFortPanelLayout {both|expression|routine} — the volatile
+-- Diagnostics / Interactions / Actions sections show in the "both" layout.
+--
+-- Wire protocol: ``dimfort/panelInfo`` + ``dimfort/interactions`` LSP
+-- requests and ``textDocument/codeAction`` — see
+-- DimFort/docs/design/panel-info.md and interaction-points.md.
 
 local M = {}
 
@@ -34,11 +44,18 @@ local state = {
   buf = nil,
   ns = vim.api.nvim_create_namespace("DimFortPanel"),
   pending_timer = nil,
-  in_flight_request_id = nil,
+  req_id = 0,                -- bundle sequence; late responses are dropped
   source_winid = nil,        -- the editor window the panel is following
   source_bufnr = nil,
-  last_payload = nil,        -- cached last response so we can keep
-                              -- showing it during refresh / stale state
+  last_payload = nil,        -- cached last panelInfo response
+  last_interactions = nil,   -- cached last interactions report
+  last_actions = nil,        -- cached last code-action list
+  scope_filter = "",         -- client-side Scope name/unit filter
+  imports_filter = "",       -- client-side Imports name/unit/module filter
+  -- Per-rendered-line navigation targets, rebuilt on every paint.
+  -- targets[i] is nil (inert) or { line=, column=, file=, end_line=,
+  -- end_column= } for a jump, or { action = <CodeAction> } to apply.
+  targets = {},
 }
 
 -- Headers + dividers shown in the panel.
@@ -46,6 +63,10 @@ local DIVIDER = string.rep("─", 60)
 
 -- ---------------------------------------------------------------------------
 -- Rendering
+--
+-- A *canvas* accumulates display rows alongside a parallel array of
+-- navigation targets, so <CR> on any row knows what (if anything) it
+-- points at. ``emit(cv, row[, target])`` keeps the two in lockstep.
 
 local MARKER = { ok = "🟢", warn = "🟡", error = "🔴" }
 
@@ -57,8 +78,45 @@ local function present(v)
   return v ~= nil and v ~= vim.NIL
 end
 
+local function val(v, default)
+  if present(v) then return v end
+  return default
+end
+
+local function new_canvas()
+  return { rows = {}, targets = {} }
+end
+
+local function emit(cv, row, target, hl)
+  table.insert(cv.rows, row)
+  -- Store the target at the same index (may be nil — a hole is fine).
+  cv.targets[#cv.rows] = target
+  -- Optional per-row highlight group (e.g. a diagnostic severity colour).
+  -- nil for ordinary rows.
+  if hl then
+    cv.hls = cv.hls or {}
+    cv.hls[#cv.rows] = hl
+  end
+end
+
 local function marker_for(node)
   return MARKER[present(node) and node.marker] or " "
+end
+
+-- Strip a leading ``file://`` scheme so a wire path opens with :edit.
+local function as_path(s)
+  s = tostring(s or "")
+  local stripped = s:gsub("^file://", "")
+  -- vim.uri_to_fname handles percent-encoding; fall back to the raw text.
+  if s:match("^file://") then
+    local ok, p = pcall(vim.uri_to_fname, s)
+    if ok and p and p ~= "" then return p end
+  end
+  return stripped
+end
+
+local function base_name(p)
+  return tostring(p or ""):match("[^/\\]+$") or tostring(p or "")
 end
 
 -- Recursively collect tree entries as ``{tree, unit, mark, rule}``
@@ -96,12 +154,12 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
   end
 end
 
--- Render the expression tree into ``rows`` with two aligned columns:
+-- Render the expression tree into the canvas with two aligned columns:
 -- the ``: unit`` block and the 🟢/🟡/🔴 marker. Padding uses display
 -- width (``strdisplaywidth``) so multi-byte box-drawing chars and unit
 -- glyphs don't throw the alignment off. Statement rows (no unit) leave
 -- the unit column blank but still align their markers.
-local function render_expression(node, rows)
+local function render_expression(cv, node)
   local entries = {}
   collect_expression(node, "", true, true, entries)
   -- Column 1: the tree-label width. Column 2: the unit width.
@@ -123,7 +181,7 @@ local function render_expression(node, rows)
     else
       mid = ""
     end
-    table.insert(rows, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.rule)
+    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.rule)
   end
 end
 
@@ -137,28 +195,28 @@ end
 -- visually — a module-contained subroutine sits one level in from the
 -- module. Two spaces per level; depth rarely exceeds 1 (module →
 -- routine) so the horizontal cost is small.
-local function render_scope_vars(scope, vars, rows, depth)
+local function render_scope_vars(cv, scope, vars, depth)
   local pad = string.rep("  ", depth or 0)
   if present(scope) then
     -- e.g. "Subroutine: driver", "Module: constants_mod".
-    table.insert(rows, pad .. string.format("%s: %s",
-                                            titlecase(scope.kind), scope.name))
+    emit(cv, pad .. string.format("%s: %s",
+                                  titlecase(scope.kind), scope.name))
   else
-    table.insert(rows, pad .. "Scope: (file level)")
+    emit(cv, pad .. "Scope: (file level)")
   end
-  table.insert(rows, "")
+  emit(cv, "")
   vars = (present(vars) and vars) or {}
   if #vars == 0 then
-    table.insert(rows, pad .. "  (no declarations)")
+    emit(cv, pad .. "  (no declarations)", nil, "Comment")
     return
   end
   -- Compute column widths over the *displayed* strings so the markers
   -- line up — "(none)" for unannotated counts toward the unit width.
   local name_w, unit_w = 4, 4
   for _, v in ipairs(vars) do
-    name_w = math.max(name_w, #v.name)
+    name_w = math.max(name_w, vim.fn.strdisplaywidth(v.name))
     local shown_unit = present(v.unit) and v.unit or "(none)"
-    unit_w = math.max(unit_w, #shown_unit)
+    unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit))
   end
   for _, v in ipairs(vars) do
     local unit = present(v.unit) and v.unit or "(none)"
@@ -173,66 +231,388 @@ local function render_scope_vars(scope, vars, rows, depth)
     else
       tail = " 🟢"
     end
-    table.insert(rows, pad .. string.format("  %4d  %-" .. name_w .. "s  %-" ..
-                                            unit_w .. "s%s",
-                                            v.line, v.name, unit, tail))
+    local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(v.name))
+    local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+    emit(cv, pad .. string.format("  %4d  ", v.line)
+         .. v.name .. name_pad .. "  " .. unit .. unit_pad .. tail,
+         { line = v.line })
   end
 end
 
-local function render_payload(payload)
-  local rows = {}
-  local has_payload = present(payload)
-  if M.config.layout == "both" or M.config.layout == "expression" then
-    table.insert(rows, "Expression")
-    table.insert(rows, "")
-    if has_payload and present(payload.expression) then
-      render_expression(payload.expression, rows)
-    else
-      table.insert(rows, "  (no expression at cursor)")
-    end
-    table.insert(rows, "")
+-- Case-insensitive substring match used by the Scope filter.
+local function matches_filter(v, q)
+  if q == "" then return true end
+  local name = (v.name or ""):lower()
+  if name:find(q, 1, true) then return true end
+  local unit = present(v.unit) and v.unit:lower() or ""
+  return unit ~= "" and unit:find(q, 1, true) ~= nil
+end
+
+-- The Scope section: stacked enclosing scopes, outermost first, with the
+-- active name/unit filter applied. Mirrors the VSCode panel's filter box.
+local function render_scope(cv, payload)
+  local q = (state.scope_filter or ""):lower()
+  if q ~= "" then
+    emit(cv, 'Filter: "' .. state.scope_filter .. '"  (:DimFortScopeFilter to change)')
+    emit(cv, "")
   end
-  if M.config.layout == "both" then
-    table.insert(rows, DIVIDER)
-    table.insert(rows, "")
-  end
-  if M.config.layout == "both" or M.config.layout == "routine" then
-    if has_payload and present(payload.scopes) and #payload.scopes > 0 then
-      -- Stack one section per enclosing scope, outermost first
-      -- (e.g. Module then Subroutine), so the user sees the whole
-      -- environment hierarchy, not just the innermost frame.
-      for i, sc in ipairs(payload.scopes) do
-        if i > 1 then table.insert(rows, "") end
-        -- i is 1-based; depth is 0 for the outermost scope.
-        render_scope_vars(sc, sc.vars, rows, i - 1)
+  if present(payload) and present(payload.scopes) and #payload.scopes > 0 then
+    local shown_any = false
+    for i, sc in ipairs(payload.scopes) do
+      local all = (present(sc.vars) and sc.vars) or {}
+      local kept = {}
+      for _, v in ipairs(all) do
+        if matches_filter(v, q) then table.insert(kept, v) end
       end
-    elseif has_payload then
-      -- Back-compat with older servers that only send a single scope.
-      local scope = present(payload.scope) and payload.scope or payload.routine
-      local scope_vars = present(payload.scopeVars) and payload.scopeVars
-        or payload.routineVars
-      render_scope_vars(scope, scope_vars, rows, 0)
-    else
-      table.insert(rows, "Scope: (none)")
+      -- While filtering, hide scopes with no surviving variables.
+      if q == "" or #kept > 0 then
+        if shown_any then emit(cv, "") end
+        render_scope_vars(cv, sc, kept, i - 1)
+        shown_any = true
+      end
     end
+    if q ~= "" and not shown_any then
+      emit(cv, '  (no variables match "' .. state.scope_filter .. '")', nil, "Comment")
+    end
+  elseif present(payload) then
+    -- Back-compat with older servers that only send a single scope.
+    local scope = present(payload.scope) and payload.scope or payload.routine
+    local scope_vars = present(payload.scopeVars) and payload.scopeVars
+      or payload.routineVars
+    render_scope_vars(cv, scope, scope_vars, 0)
+  else
+    emit(cv, "Scope: (none)", nil, "Comment")
   end
-  return rows
 end
 
-local function paint(rows, stale)
+-- Cursor-line diagnostics. The whole 🔴/🟡/🔵 family so any info-level
+-- diagnostic (e.g. P001 unparsed regions) reads the same as the others.
+local function render_diagnostics(cv, diags)
+  diags = (present(diags) and diags) or {}
+  if #diags == 0 then
+    emit(cv, "  (none)", nil, "Comment")
+    return
+  end
+  for _, d in ipairs(diags) do
+    local sev = present(d.severity) and d.severity or "info"
+    local glyph = (sev == "error") and "🔴"
+      or (sev == "warning") and "🟡" or "🔵"
+    -- Colour the row by severity with Neovim's standard diagnostic highlight
+    -- groups, so it follows the colourscheme and matches native diagnostic
+    -- styling (virtual text / signs / underlines).
+    local hl = (sev == "error") and "DiagnosticError"
+      or (sev == "warning") and "DiagnosticWarn" or "DiagnosticInfo"
+    local code = present(d.code) and d.code or "?"
+    local msg = present(d.message) and d.message or ""
+    emit(cv, "  " .. glyph .. " " .. code .. ": " .. msg, {
+      line = d.line, column = d.column,
+      end_line = present(d.endLine) and d.endLine or nil,
+      end_column = present(d.endColumn) and d.endColumn or nil,
+    }, hl)
+  end
+end
+
+-- Interactions: the symbol under the cursor, its use-sites grouped by the
+-- constraint each places on its unit, and any X001 conflict. Mirrors the
+-- 'dimfort interactions' CLI; rows navigate cross-file.
+local INTERACTION_GROUPS = {
+  { kind = "declares", label = "Declaration" },
+  { kind = "contributes", label = "Write" },
+  { kind = "requires", label = "Read" },
+  { kind = "uses", label = "Undetermined read" },
+}
+
+local function render_interactions(cv, rep)
+  if not present(rep) or not present(rep.points) or #rep.points == 0 then
+    emit(cv, "  (none)", nil, "Comment")
+    return
+  end
+  emit(cv, "  " .. (present(rep.symbol) and rep.symbol or "?"))
+  -- Conflicts first — the headline.
+  for _, c in ipairs((present(rep.conflicts) and rep.conflicts) or {}) do
+    emit(cv, "  🔴 " .. val(c.code, "?") .. ": " .. val(c.message, ""), {
+      file = c.file, line = c.line, column = c.column,
+    }, "DiagnosticError")
+  end
+  for _, group in ipairs(INTERACTION_GROUPS) do
+    local pts = {}
+    for _, p in ipairs(rep.points) do
+      if p.kind == group.kind then table.insert(pts, p) end
+    end
+    emit(cv, "  " .. group.label)
+    if #pts == 0 then
+      emit(cv, "      (none)", nil, "Comment")
+    else
+      for _, p in ipairs(pts) do
+        local loc = base_name(as_path(p.file)) .. ":" .. tostring(p.line)
+        -- The Undetermined group has no derived unit by definition.
+        local unit = (group.kind ~= "uses" and present(p.unit))
+          and ("   " .. p.unit) or ""
+        local target = { file = p.file, line = p.line, column = p.column }
+        emit(cv, "      " .. loc .. unit, target)
+        if present(p.snippet) and p.snippet ~= "" then
+          emit(cv, "        " .. p.snippet, target, "Comment")
+        end
+      end
+    end
+  end
+end
+
+-- Actions available at the cursor — code actions (Add @unit{} / extract
+-- to PARAMETER). <CR> on a row applies it. ``actions`` is the raw
+-- CodeAction list as returned by the server.
+local function render_actions(cv, actions)
+  actions = (present(actions) and actions) or {}
+  if #actions == 0 then
+    emit(cv, "  (none)", nil, "Comment")
+    return
+  end
+  for _, a in ipairs(actions) do
+    local title = (present(a.title) and a.title or "(action)")
+      :gsub("^DimFort:%s*", "")
+    emit(cv, "  • " .. title, { action = a })
+  end
+end
+
+-- Display name for an import row: a callable (imported function /
+-- subroutine) reads as ``name()``.
+local function import_label(im)
+  local n = present(im.name) and im.name or "?"
+  if im.callable ~= true then return n end
+  -- ``signature`` is the parenthesised argument units, e.g. "(kg, m)".
+  return n .. (present(im.signature) and im.signature or "()")
+end
+
+-- Case-insensitive match of an import against the shared filter, over
+-- the displayed name, the unit, and the source module.
+local function import_matches(im, q)
+  if q == "" then return true end
+  local name = import_label(im):lower()
+  if name:find(q, 1, true) then return true end
+  local unit = present(im.unit) and im.unit:lower() or ""
+  if unit ~= "" and unit:find(q, 1, true) then return true end
+  local m = present(im.module) and im.module:lower() or ""
+  return m ~= "" and m:find(q, 1, true) ~= nil
+end
+
+-- Imports: variables + procedures a 'use' clause brings into scope,
+-- grouped by source module. Each row navigates (cross-file) to where the
+-- imported symbol — and its @unit{} — is declared. Has its own name/unit/
+-- module filter (state.imports_filter, set via :DimFortImportsFilter).
+local function render_imports(cv, imports)
+  imports = (present(imports) and imports) or {}
+  local q = (state.imports_filter or ""):lower()
+  if q ~= "" then
+    emit(cv, 'Filter: "' .. state.imports_filter
+            .. '"  (:DimFortImportsFilter to change)')
+    emit(cv, "")
+  end
+  -- Filter first, then group (so empty groups disappear under a filter).
+  local kept = {}
+  for _, im in ipairs(imports) do
+    if import_matches(im, q) then table.insert(kept, im) end
+  end
+  if #kept == 0 then
+    if q ~= "" and #imports > 0 then
+      emit(cv, '  (no imports match "' .. state.imports_filter .. '")', nil, "Comment")
+    else
+      emit(cv, "  (none)", nil, "Comment")
+    end
+    return
+  end
+  -- Group by module, preserving first-seen order.
+  local order, groups = {}, {}
+  for _, im in ipairs(kept) do
+    local m = present(im.module) and im.module or "?"
+    if not groups[m] then
+      groups[m] = {}
+      table.insert(order, m)
+    end
+    table.insert(groups[m], im)
+  end
+  for _, m in ipairs(order) do
+    emit(cv, "  from " .. m)
+    local name_w, unit_w = 4, 4
+    for _, im in ipairs(groups[m]) do
+      name_w = math.max(name_w, vim.fn.strdisplaywidth(import_label(im)))
+      unit_w = math.max(unit_w,
+        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "(none)"))
+    end
+    for _, im in ipairs(groups[m]) do
+      -- A subroutine (callable, no unit, not a missing annotation) reads
+      -- as "—" rather than "(none)" — it has no return value to annotate.
+      local unit
+      if present(im.unit) then
+        unit = im.unit
+      elseif im.callable == true and im.kind == "annotated" then
+        unit = "—"
+      else
+        unit = "(none)"
+      end
+      local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
+      local label = import_label(im)
+      local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(label))
+      local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+      emit(cv, "      " .. label .. name_pad .. "  " .. unit .. unit_pad .. tail,
+           { file = present(im.file) and im.file or nil,
+             line = im.line, column = im.column })
+    end
+  end
+end
+
+-- Append a titled, divided section to the canvas.
+local function add_section(cv, title, body_fn)
+  emit(cv, title)
+  emit(cv, "")
+  body_fn(cv)
+  emit(cv, "")
+end
+
+local function render_all()
+  local cv = new_canvas()
+  local payload = state.last_payload
+  local layout = M.config.layout
+
+  if layout == "both" or layout == "expression" then
+    add_section(cv, "Expression", function(c)
+      if present(payload) and present(payload.expression) then
+        render_expression(c, payload.expression)
+      else
+        emit(c, "  (none)", nil, "Comment")
+      end
+    end)
+  end
+
+  if layout == "both" then
+    add_section(cv, "Diagnostics", function(c)
+      render_diagnostics(c, present(payload) and payload.diagnostics or {})
+    end)
+    add_section(cv, "Interactions", function(c)
+      render_interactions(c, state.last_interactions)
+    end)
+    add_section(cv, "Actions", function(c)
+      render_actions(c, state.last_actions)
+    end)
+  end
+
+  if layout == "both" or layout == "routine" then
+    if layout == "both" then
+      emit(cv, DIVIDER)
+      emit(cv, "")
+    end
+    add_section(cv, "Scope", function(c)
+      render_scope(c, payload)
+    end)
+    add_section(cv, "Imports", function(c)
+      render_imports(c, present(payload) and payload.imports or {})
+    end)
+  end
+
+  -- Footer: whole-file diagnostic counts.
+  if layout == "both" and present(payload) and present(payload.fileDiagnosticCounts) then
+    local counts = payload.fileDiagnosticCounts
+    emit(cv, DIVIDER)
+    emit(cv, string.format("File: 🔴 %d   🟡 %d",
+                           val(counts.error, 0), val(counts.warning, 0)))
+  end
+
+  return cv
+end
+
+local function paint(cv, stale)
   if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then return end
+  state.targets = cv.targets
   vim.api.nvim_buf_set_option(state.buf, "modifiable", true)
-  vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, rows)
+  vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, cv.rows)
   vim.api.nvim_buf_set_option(state.buf, "modifiable", false)
   -- Stale highlight: tint every line as a Comment so the user sees
   -- the panel is mid-update without us blanking the prior content.
   vim.api.nvim_buf_clear_namespace(state.buf, state.ns, 0, -1)
   if stale then
-    for i = 0, #rows - 1 do
+    for i = 0, #cv.rows - 1 do
       vim.api.nvim_buf_set_extmark(state.buf, state.ns, i, 0, {
         end_line = i + 1, hl_group = "Comment",
       })
     end
+  else
+    -- Per-row highlights (e.g. diagnostic severity colours). Skipped while
+    -- stale, where the Comment tint takes over the whole panel.
+    for idx, hl in pairs(cv.hls or {}) do
+      vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, 0, {
+        end_line = idx, hl_group = hl,
+      })
+    end
+  end
+end
+
+-- Paint a plain message (no targets) — used for transient states.
+local function paint_message(lines, stale)
+  paint({ rows = lines, targets = {} }, stale)
+end
+
+-- ---------------------------------------------------------------------------
+-- Navigation + action application (driven by <CR> on a panel row)
+
+-- Jump the source window's cursor to a target's (file, line[, column]).
+local function reveal(target)
+  local win = state.source_winid
+  if not (win and vim.api.nvim_win_is_valid(win)) then return end
+  vim.api.nvim_set_current_win(win)
+  if present(target.file) and target.file ~= "" then
+    local path = as_path(target.file)
+    if path ~= "" then
+      vim.cmd("edit " .. vim.fn.fnameescape(path))
+    end
+  end
+  local line = math.max(1, target.line or 1)
+  local col = math.max(0, (target.column or 1) - 1)
+  pcall(vim.api.nvim_win_set_cursor, 0, { line, col })
+  vim.cmd("normal! zz")
+end
+
+-- Apply a code action: any workspace edit it carries, then its command
+-- (client-registered commands like dimfort.insertSnippet, else a
+-- server command via executeCommand).
+local function apply_action(action)
+  local c = M._client and M._client() or nil
+  if not c then
+    local clients = vim.lsp.get_clients({ name = "dimfort" })
+    c = clients[1]
+  end
+  -- Re-focus the source window first — the action edits the source buffer.
+  if state.source_winid and vim.api.nvim_win_is_valid(state.source_winid) then
+    vim.api.nvim_set_current_win(state.source_winid)
+  end
+  if present(action.edit) then
+    local enc = (c and c.offset_encoding) or "utf-16"
+    pcall(vim.lsp.util.apply_workspace_edit, action.edit, enc)
+  end
+  if present(action.command) then
+    local cmd = action.command
+    local handler = (c and c.commands and c.commands[cmd.command])
+      or vim.lsp.commands[cmd.command]
+    if handler then
+      handler(cmd, { bufnr = state.source_bufnr, client_id = c and c.id })
+    elseif c then
+      -- Server-side command.
+      pcall(function()
+        c:exec_cmd(cmd, { bufnr = state.source_bufnr })
+      end)
+    end
+  end
+end
+
+-- <CR> handler bound buffer-locally in the panel. Looks up the target for
+-- the row under the cursor and either navigates or applies an action.
+function M._activate_line()
+  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then return end
+  local row = vim.api.nvim_win_get_cursor(state.win)[1]
+  local target = state.targets[row]
+  if not target then return end
+  if present(target.action) then
+    apply_action(target.action)
+  else
+    reveal(target)
   end
 end
 
@@ -248,6 +628,12 @@ local function ensure_buffer()
   vim.api.nvim_buf_set_option(state.buf, "buftype", "nofile")
   vim.api.nvim_buf_set_option(state.buf, "swapfile", false)
   vim.api.nvim_buf_set_option(state.buf, "filetype", "dimfort-panel")
+  -- <CR> on a row navigates / applies; mapped buffer-locally so it
+  -- doesn't leak into the user's other buffers.
+  vim.keymap.set("n", "<CR>", function() M._activate_line() end, {
+    buffer = state.buf, nowait = true, silent = true,
+    desc = "DimFort: activate panel row (jump / apply action)",
+  })
   return state.buf
 end
 
@@ -315,6 +701,7 @@ local function client()
   local clients = vim.lsp.get_clients({ name = "dimfort" })
   return clients[1]
 end
+M._client = client
 
 local function position_params(winid)
   local buf = vim.api.nvim_win_get_buf(winid)
@@ -342,7 +729,7 @@ function M.refresh()
   if not (state.win and vim.api.nvim_win_is_valid(state.win)) then return end
   local c = client()
   if not c then
-    paint({ "(DimFort LSP not attached)" }, false)
+    paint_message({ "(DimFort LSP not attached)" }, false)
     return
   end
   -- Determine the source window to take cursor + buffer from. If the
@@ -357,27 +744,66 @@ function M.refresh()
   state.source_bufnr = vim.api.nvim_win_get_buf(target_win)
   if on_cursor_line_uninteresting(target_win) then
     -- Keep the last payload visible; just don't request.
-    paint(render_payload(state.last_payload), false)
+    paint(render_all(), false)
     return
   end
 
-  -- Mark current content as stale until the response arrives.
-  paint(render_payload(state.last_payload), true)
-  local req_id = (state.in_flight_request_id or 0) + 1
-  state.in_flight_request_id = req_id
+  -- Mark current content as stale until the responses arrive.
+  paint(render_all(), true)
+  local req_id = state.req_id + 1
+  state.req_id = req_id
+  local params = position_params(target_win)
+  local bufnr = state.source_bufnr
 
-  c:request("dimfort/panelInfo", position_params(target_win),
-    function(err, result)
-      -- Drop the response if a newer request superseded it.
-      if state.in_flight_request_id ~= req_id then return end
-      if err then
-        paint({ "(DimFort panel error: " .. tostring(err.message or err) .. ")" }, false)
-        return
-      end
-      state.last_payload = result
-      paint(render_payload(result), false)
+  -- panelInfo — the expression tree + scope tables + cursor diagnostics.
+  c:request("dimfort/panelInfo", params, function(err, result)
+    if state.req_id ~= req_id then return end
+    if err then
+      paint_message({ "(DimFort panel error: " ..
+        tostring(err.message or err) .. ")" }, false)
+      return
     end
-  )
+    state.last_payload = result
+    paint(render_all(), false)
+  end, bufnr)
+
+  -- interactions — cross-site unit constraints for the symbol at cursor.
+  -- Best-effort; a failure just leaves the section's last content.
+  c:request("dimfort/interactions", params, function(err, result)
+    if state.req_id ~= req_id then return end
+    state.last_interactions = (not err) and result or nil
+    paint(render_all(), false)
+  end, bufnr)
+
+  -- code actions — filtered to DimFort's own (Add @unit{} / extract).
+  -- The extract-to-PARAMETER action is built from the H010 diagnostics in
+  -- the request context (the server keys off them), so populate the
+  -- context with the cursor line's published LSP diagnostics — exactly
+  -- what VSCode's executeCodeActionProvider does automatically.
+  local ctx_diags = {}
+  for _, d in ipairs(vim.diagnostic.get(bufnr, { lnum = params.position.line })) do
+    local lsp = d.user_data and d.user_data.lsp
+    if lsp then table.insert(ctx_diags, lsp) end
+  end
+  c:request("textDocument/codeAction", {
+    textDocument = params.textDocument,
+    range = { start = params.position, ["end"] = params.position },
+    context = { diagnostics = ctx_diags },
+  }, function(err, result)
+    if state.req_id ~= req_id then return end
+    local actions = {}
+    for _, a in ipairs((not err and result) or {}) do
+      -- Keep DimFort's actions (command prefix or unit/PARAMETER title).
+      local title = present(a.title) and a.title or ""
+      local cmd = present(a.command) and a.command.command or ""
+      if cmd:match("^dimfort%.") or title:match("[Uu]nit")
+        or title:match("PARAMETER") then
+        table.insert(actions, a)
+      end
+    end
+    state.last_actions = actions
+    paint(render_all(), false)
+  end, bufnr)
 end
 
 local function schedule_refresh()
@@ -432,7 +858,25 @@ function M.set_layout(layout)
   M.config.layout = layout
   vim.notify("DimFort: panel layout → " .. layout, vim.log.levels.INFO)
   if state.win and vim.api.nvim_win_is_valid(state.win) then
-    paint(render_payload(state.last_payload), false)
+    paint(render_all(), false)
+  end
+end
+
+-- Set (or clear, with no argument) the Scope section's name/unit filter.
+-- Client-side: no LSP round-trip, repaints from the cached payload.
+function M.set_filter(query)
+  state.scope_filter = query or ""
+  if state.win and vim.api.nvim_win_is_valid(state.win) then
+    paint(render_all(), false)
+  end
+end
+
+-- Set (or clear) the Imports section's name/unit/module filter — its own
+-- filter, independent of the Scope one.
+function M.set_imports_filter(query)
+  state.imports_filter = query or ""
+  if state.win and vim.api.nvim_win_is_valid(state.win) then
+    paint(render_all(), false)
   end
 end
 
