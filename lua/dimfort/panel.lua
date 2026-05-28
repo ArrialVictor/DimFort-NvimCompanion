@@ -211,15 +211,15 @@ local function render_scope_vars(cv, scope, vars, depth)
     return
   end
   -- Compute column widths over the *displayed* strings so the markers
-  -- line up — "(none)" for unannotated counts toward the unit width.
+  -- line up — "?" for unannotated counts toward the unit width.
   local name_w, unit_w = 4, 4
   for _, v in ipairs(vars) do
     name_w = math.max(name_w, vim.fn.strdisplaywidth(v.name))
-    local shown_unit = present(v.unit) and v.unit or "(none)"
+    local shown_unit = present(v.unit) and v.unit or "?"
     unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit))
   end
   for _, v in ipairs(vars) do
-    local unit = present(v.unit) and v.unit or "(none)"
+    local unit = present(v.unit) and v.unit or "?"
     -- Every row gets a marker: 🟢 annotated, 🟡 unannotated, 🔴 the
     -- annotation is present but failed to parse (U002). Matches the
     -- expression-tree convention so the whole panel reads the same.
@@ -436,18 +436,19 @@ local function render_imports(cv, imports)
     for _, im in ipairs(groups[m]) do
       name_w = math.max(name_w, vim.fn.strdisplaywidth(import_label(im)))
       unit_w = math.max(unit_w,
-        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "(none)"))
+        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "?"))
     end
     for _, im in ipairs(groups[m]) do
       -- A subroutine (callable, no unit, not a missing annotation) reads
-      -- as "—" rather than "(none)" — it has no return value to annotate.
+      -- as "-" (structural-no-unit) rather than "?" — it has no return
+      -- value to annotate. Unannotated declarations get "?" (unknown).
       local unit
       if present(im.unit) then
         unit = im.unit
       elseif im.callable == true and im.kind == "annotated" then
-        unit = "—"
+        unit = "-"
       else
-        unit = "(none)"
+        unit = "?"
       end
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
       local label = import_label(im)

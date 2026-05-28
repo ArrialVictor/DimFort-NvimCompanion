@@ -9,6 +9,19 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+### Change: scope / import unannotated vars render `?`, not `(none)`
+
+Aligns with the server-side glyph unification (see DimFort
+design/markers.md §4.5): `(none)` is now reserved for empty
+(sub-)section headers only (`Scope: (none)`, `Imports: (none)`).
+Individual unannotated variables in the Scope and Imports sections
+read `?` — the same glyph used inside the Expression tree for
+unknown units. Imported subroutines (no return by design) read `-`
+instead of `?` to distinguish "no unit by structure" from "we
+don't know yet". (The Nvim Imports row previously used `—`; that
+becomes `-` for the same reason — a single glyph across both
+companions and across surfaces.)
+
 ### Change: panel tree drops rule IDs; renders `(expected …)` on call-arg mismatches
 
 Tracks the server's wire-format rename `ExpressionNode.ruleId` →
