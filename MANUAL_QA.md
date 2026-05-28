@@ -184,9 +184,16 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
       `@unit_assume` directive asserts the result's unit and
       suppresses `D1.4`; in its place a **U020 INFO** appears,
       acknowledging the assumption (informational, not a problem).
-      The hover root reads `rho_brandes = … : -  🟢` (assignment
-      statement, structural-no-unit `-`); the RHS row carries the
-      assumed unit `kg·m⁻³` with no `(expected …)` mismatch.
+      The hover root reads
+      `rho_brandes = … : -  🔵  (assumed: empirical-fit Brandes2007)` —
+      the new `🔵` marker (a fourth tier between 🟢 and 🟡 — see
+      DimFort design/markers.md §4.6) signals that the row was
+      accepted via the directive, and the row tail surfaces the
+      mandatory reason. The child markers in the RHS sub-tree are
+      *not* propagated up through this row — the directive's
+      contract is "trust me on the unit, ignore the inside," so an
+      unresolved leaf like `(-0.922)` doesn't pull the assignment
+      marker to 🟡.
       Common in physics: Tetens (saturation vapour pressure),
       Magnus, Buck, parameterised turbulence closures, etc. The
       assumed-unit registry lives in

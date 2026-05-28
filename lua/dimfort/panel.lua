@@ -68,7 +68,7 @@ local DIVIDER = string.rep("─", 60)
 -- navigation targets, so <CR> on any row knows what (if anything) it
 -- points at. ``emit(cv, row[, target])`` keeps the two in lockstep.
 
-local MARKER = { ok = "🟢", warn = "🟡", error = "🔴" }
+local MARKER = { ok = "🟢", assumed = "🔵", warn = "🟡", error = "🔴" }
 
 -- Neovim deserializes JSON ``null`` to ``vim.NIL`` — a userdata value
 -- that's NOT equal to Lua ``nil`` and IS truthy. Every field we read
@@ -147,7 +147,13 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
   end
   local has_unit = present(node.unit)
   local expected = present(node.expected) and node.expected or nil
-  local extra = expected and (" (expected " .. expected .. ")") or ""
+  local assumed = present(node.assumed) and node.assumed or nil
+  -- Row tail: '(expected …)' on mismatch, '(assumed: <reason>)' on
+  -- @unit_assume rows. Both may apply; concatenate with a separating
+  -- space.
+  local extra = ""
+  if expected then extra = extra .. " (expected " .. expected .. ")" end
+  if assumed then extra = extra .. " (assumed: " .. assumed .. ")" end
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
   table.insert(entries, {
