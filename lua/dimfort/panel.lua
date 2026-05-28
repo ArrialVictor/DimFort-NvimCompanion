@@ -87,7 +87,7 @@ local function new_canvas()
   return { rows = {}, targets = {} }
 end
 
-local function emit(cv, row, target, hl)
+local function emit(cv, row, target, hl, ranges)
   table.insert(cv.rows, row)
   -- Store the target at the same index (may be nil — a hole is fine).
   cv.targets[#cv.rows] = target
@@ -96,6 +96,14 @@ local function emit(cv, row, target, hl)
   if hl then
     cv.hls = cv.hls or {}
     cv.hls[#cv.rows] = hl
+  end
+  -- Optional per-row sub-range highlights. ``ranges`` is a list of
+  -- ``{col=<byte>, end_col=<byte>, hl=<group>}`` records. Used to dim
+  -- absence-of-information glyphs (``?``/``-``) inside a row that
+  -- otherwise renders in normal colour.
+  if ranges and #ranges > 0 then
+    cv.range_hls = cv.range_hls or {}
+    cv.range_hls[#cv.rows] = ranges
   end
 end
 
@@ -233,9 +241,18 @@ local function render_scope_vars(cv, scope, vars, depth)
     end
     local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(v.name))
     local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+    -- Dim absence-of-information glyphs (`?` = unknown, `-` =
+    -- structural-no-unit) so real units pop visually. The unit cell
+    -- starts at `#prefix + name_w + 2` (bytes — pads are ASCII).
+    local ranges
+    if unit == "?" or unit == "-" then
+      local prefix = pad .. string.format("  %4d  ", v.line)
+      local unit_col = #prefix + name_w + 2
+      ranges = { { col = unit_col, end_col = unit_col + #unit, hl = "Comment" } }
+    end
     emit(cv, pad .. string.format("  %4d  ", v.line)
          .. v.name .. name_pad .. "  " .. unit .. unit_pad .. tail,
-         { line = v.line })
+         { line = v.line }, nil, ranges)
   end
 end
 
@@ -454,9 +471,18 @@ local function render_imports(cv, imports)
       local label = import_label(im)
       local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(label))
       local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+      -- Dim absence-of-information glyphs so real units pop. Prefix is
+      -- 6 spaces + label_padded(name_w) + "  " — all ASCII, so byte
+      -- count = display width.
+      local ranges
+      if unit == "?" or unit == "-" then
+        local unit_col = 6 + name_w + 2
+        ranges = { { col = unit_col, end_col = unit_col + #unit, hl = "Comment" } }
+      end
       emit(cv, "      " .. label .. name_pad .. "  " .. unit .. unit_pad .. tail,
            { file = present(im.file) and im.file or nil,
-             line = im.line, column = im.column })
+             line = im.line, column = im.column },
+           nil, ranges)
     end
   end
 end
@@ -542,6 +568,15 @@ local function paint(cv, stale)
       vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, 0, {
         end_line = idx, hl_group = hl,
       })
+    end
+    -- Per-row sub-range highlights (e.g. dimming the unit glyph ``?``/``-``
+    -- inside an otherwise normal row).
+    for idx, ranges in pairs(cv.range_hls or {}) do
+      for _, r in ipairs(ranges) do
+        vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, r.col, {
+          end_col = r.end_col, hl_group = r.hl,
+        })
+      end
     end
   end
 end
