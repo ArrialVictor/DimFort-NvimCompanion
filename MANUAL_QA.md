@@ -227,7 +227,7 @@ each time). Hover with `K` (`vim.lsp.buf.hover()`).
       ```
       🟢 DimFort
 
-      dynamic_pressure: (m·s⁻¹) → kg·m⁻¹·s⁻²
+      dynamic_pressure(m·s⁻¹) : kg·m⁻¹·s⁻²
       ```
 
       Just the dimensional signature. No per-arg row table — the
@@ -272,21 +272,26 @@ it refreshes.
       ```
       Expression
 
-      bogus = c_sound * t      🔴
-      ├── bogus       : kg     🟢
-      └── c_sound * t : m      🟢
-          ├── c_sound : m·s⁻¹  🟢
-          └── t       : s      🟢
+      bogus = c_sound * t : -      🔴
+      ├── bogus           : kg     🟢
+      └── c_sound * t     : m      🟡  (expected kg)
+          ├── c_sound     : m·s⁻¹  🟢
+          └── t           : s      🟢
       ```
 
-      (Rule IDs like `(R4.2)` are no longer rendered on tree rows.)
+      The root row reads `: -` (structural-no-unit — an assignment has
+      no own unit) and 🔴 because H001 owns it. The RHS row demotes
+      🟢 → 🟡 with `(expected kg)` appended: the expression
+      `c_sound * t` resolved cleanly to `m`, but its consumer (the LHS)
+      demanded `kg`. (Rule IDs like `(R4.2)` are no longer rendered on
+      tree rows.)
 
 - [ ] **Multiplication chain** — cursor on the **`=`** in line 10
       (`q = 0.5 * rho * v * v`). The product nests, every step 🟢, the
       root resolving to `kg·m⁻¹·s⁻²`:
 
       ```
-      q = 0.5 * rho * v * v               🟢
+      q = 0.5 * rho * v * v : -            🟢
       ├── q                 : kg·m⁻¹·s⁻²  🟢
       └── 0.5 * rho * v * v : kg·m⁻¹·s⁻²  🟢
           ├── 0.5 * rho * v : kg·m⁻²·s⁻¹  🟢
@@ -309,11 +314,12 @@ it refreshes.
       ```
 
 - [ ] **Subroutine call** — cursor on the call name `scale_pressure` in
-      line 39. A subroutine has no return unit, so the root carries none
-      (🟡), but the computed argument still expands beneath it:
+      line 39. A subroutine has no return unit, so the root shows `-`
+      in the unit column and 🟢 (no diagnostic owns it). The computed
+      argument still expands beneath it:
 
       ```
-      call scale_pressure(2.0 * ref_pressure)              🟡
+      call scale_pressure(2.0 * ref_pressure) : -           🟢
       └── 2.0 * ref_pressure                  : kg·m⁻¹·s⁻²  🟢
           ├── 2.0                             : 1           🟢
           └── ref_pressure                    : kg·m⁻¹·s⁻²  🟢
@@ -322,8 +328,10 @@ it refreshes.
 - [ ] **Call-arg expected on mismatch** — temporarily edit line 38 to
       `ref_pressure = dynamic_pressure(c_sound * t)`. The Expression
       tree's argument row now shows
-      `c_sound * t : m 🔴 (expected m·s⁻¹)`, surfacing the formal unit the
-      call-site demanded. Revert the edit when done.
+      `c_sound * t : m 🟡 (expected m·s⁻¹)` — the 🟡 is the
+      expected-override (the expression resolved cleanly, but the call
+      disagrees with the formal); the 🔴 sits on the enclosing call
+      via H004. Revert the edit when done.
 
 - [ ] **Stacked scopes** — with the cursor in line 10 (inside the
       function), the Scope section stacks the module over the function,
@@ -333,8 +341,10 @@ it refreshes.
       ```
       Module: qa_mod
 
-        2     c_sound       m·s⁻¹ 🟢
-        3     ref_pressure  Pa    🟢
+        2     c_sound                              m·s⁻¹       🟢
+        3     ref_pressure                         Pa          🟢
+        5     dynamic_pressure(m·s⁻¹)              kg·m⁻¹·s⁻²  🟢
+       24     scale_pressure(kg·m⁻¹·s⁻²)           -           🟢
 
         Function: dynamic_pressure
 
@@ -342,6 +352,12 @@ it refreshes.
           7     q    Pa     🟢
           8     rho  kg/m^3 🟢
       ```
+
+      The two procedure rows under `Module: qa_mod` are the module's own
+      defined functions/subroutines — visible from anywhere within the
+      module (Fortran host association), mirroring how imported
+      procedures show in the Imports section. Subroutines render `-` in
+      the unit column (no return *by design*).
 
 - [ ] **Markers** — in `checks` (e.g. cursor in line 25), `t_celsius`
       shows 🟡 (unannotated); a `@unit{??}` in scope shows 🔴.
@@ -392,14 +408,16 @@ editor toggle drives it):
 
 ```fortran
 module scale_qa
+  real, parameter :: PA_PER_HPA = 100.   !< @unit{Pa/hPa}
   real :: play   !< @unit{Pa}
   real :: phpa   !< @unit{hPa}
   real :: t_k    !< @unit{K}
   real :: t_c    !< @unit{degC}
 contains
   subroutine s()
-    phpa = play        ! S001: hPa vs Pa (×100 multiplicative scale)
-    t_k  = t_c         ! S002: K vs degC (affine offset)
+    phpa = play                  ! S001: hPa vs Pa (×100 multiplicative scale)
+    phpa = play / PA_PER_HPA     ! clean: the typed factor cancels the mismatch
+    t_k  = t_c                   ! S002: K vs degC (affine offset)
   end subroutine s
 end module scale_qa
 ```
@@ -410,8 +428,73 @@ end module scale_qa
       `scale checking → on` (the server restarts): **yellow** squiggles
       appear — `phpa = play` → **S001**, `t_k = t_c` → **S002** — and the
       panel circles match (🟡).
+- [ ] **Scale factor surfaces uniformly in scale mode** — with scale on,
+      hover the `=` of `phpa = play` (or look at the Panel's Expression
+      section). The LHS row reads `phpa : 100×kg·m⁻¹·s⁻²` 🟢 and the
+      RHS row reads `play : kg·m⁻¹·s⁻²` 🟢 — the ×100 ratio matches the
+      diagnostic's `×100`. The same factor appears wherever a unit is
+      rendered (scope/imports normalized columns, etc.). With scale off,
+      factors are hidden everywhere — both sides of the assignment
+      render to the bare `kg·m⁻¹·s⁻²`. Single rule: displays match what
+      the checker is reasoning about.
+- [ ] **Typed conversion silences it** — the second assignment in `s()`,
+      `phpa = play / PA_PER_HPA`, is **clean** (no S001). The typed
+      `Pa/hPa` parameter carries the multiplicative factor explicitly,
+      so the assignment's units balance and the scale check passes.
 - [ ] **Off / Auto** — cycle again to `off` (forced clean even if a toml
       enabled it), once more to `auto` (back to deferring to the toml).
+
+## Unparsed regions (P001)
+
+`P001` marks lines tree-sitter couldn't parse — DimFort makes no unit
+guarantee there. It's an **info** diagnostic, so it renders as a faint
+**blue** squiggle, distinct from real (red) violations.
+
+Save this `unparsed_qa.f90` and open it:
+
+```fortran
+subroutine unparsed_qa(press, vel)
+  implicit none
+  real, intent(in)  :: press   !< @unit{Pa}
+  real, intent(out) :: vel     !< @unit{m/s}
+  vel = press        ! H001 (red): m·s⁻¹ vs Pa
+  vel = * / +        ! P001 (blue): unparseable line
+  vel = 0.0          ! swallowed by line-6 error region — blue too
+  vel = vel * 2.0    ! CLEAN — proves the blue stops here
+end subroutine unparsed_qa
+```
+
+> Why two trailing statements: `vel = 0.0` gets swallowed by tree-sitter's
+> error recovery on line 6 (its assignment_statement is consumed into the
+> ERROR region, so the Expression panel is degraded there). `vel = vel * 2.0`
+> is the first fully-clean statement after the bad line — present to
+> demonstrate that the P001 squiggle *stops* at line 7 and does NOT bleed
+> further. A trailing valid statement is also required for tree-sitter to
+> find the subroutine boundary; without one, the **whole** routine wraps in
+> an error region and the Scope panel blanks (known panel-robustness gap).
+
+- [ ] **Blue squiggle** — `vel = * / +` gets a **blue (info)** underline;
+      `K` on it (or `:lua vim.diagnostic.open_float()`) shows
+      **`P001` … "could not parse this region — DimFort makes no unit
+      guarantee here"** at *Information* severity. With the cursor on
+      that line, the panel's **Diagnostics** section lists the P001
+      with a **🔵** glyph (matching 🔴 error / 🟡 warning).
+- [ ] **Distinct from a real error** — `vel = press` carries a **red**
+      `H001` on the line above, so blue (FYI) and red (violation) are
+      visibly different.
+- [ ] **Localized, not the whole routine** — the blue squiggle covers
+      **exactly two lines**: `vel = * / +` (the bad line) and the
+      immediately-following `vel = 0.0` (whose assignment_statement
+      tree-sitter swallows into the error recovery region). The next
+      line `vel = vel * 2.0` is **not blue** — proving the squiggle stops
+      at the right boundary. The Expression panel is correctly empty on
+      lines 6-7 (no trustworthy tree there) and populates normally on
+      line 8 (clean autocast → `m·s⁻¹`).
+- [ ] **Doesn't mask real checks** — the `H001` still fires; P001 only marks
+      what it *couldn't* read, it doesn't suppress checking elsewhere.
+- [ ] **Suppressible** — add a workspace `.dimfort.toml` with
+      `[diagnostics]` `P001 = "off"`, save; the blue squiggle disappears
+      (no manual restart), the red `H001` stays.
 
 ## Imports section
 
