@@ -68,7 +68,7 @@ local DIVIDER = string.rep("─", 60)
 -- navigation targets, so <CR> on any row knows what (if anything) it
 -- points at. ``emit(cv, row[, target])`` keeps the two in lockstep.
 
-local MARKER = { ok = "🟢", warn = "🟡", error = "🔴" }
+local MARKER = { ok = "🟢", assumed = "🔵", warn = "🟡", error = "🔴" }
 
 -- Neovim deserializes JSON ``null`` to ``vim.NIL`` — a userdata value
 -- that's NOT equal to Lua ``nil`` and IS truthy. Every field we read
@@ -87,7 +87,7 @@ local function new_canvas()
   return { rows = {}, targets = {} }
 end
 
-local function emit(cv, row, target, hl)
+local function emit(cv, row, target, hl, ranges)
   table.insert(cv.rows, row)
   -- Store the target at the same index (may be nil — a hole is fine).
   cv.targets[#cv.rows] = target
@@ -96,6 +96,14 @@ local function emit(cv, row, target, hl)
   if hl then
     cv.hls = cv.hls or {}
     cv.hls[#cv.rows] = hl
+  end
+  -- Optional per-row sub-range highlights. ``ranges`` is a list of
+  -- ``{col=<byte>, end_col=<byte>, hl=<group>}`` records. Used to dim
+  -- absence-of-information glyphs (``?``/``-``) inside a row that
+  -- otherwise renders in normal colour.
+  if ranges and #ranges > 0 then
+    cv.range_hls = cv.range_hls or {}
+    cv.range_hls[#cv.rows] = ranges
   end
 end
 
@@ -138,15 +146,21 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
     next_prefix = prefix .. "│   "
   end
   local has_unit = present(node.unit)
-  local rule_id = present(node.ruleId) and node.ruleId or nil
-  local rule = rule_id and (" (" .. rule_id .. ")") or ""
+  local expected = present(node.expected) and node.expected or nil
+  local assumed = present(node.assumed) and node.assumed or nil
+  -- Row tail: '(expected …)' on mismatch, '(assumed: <reason>)' on
+  -- @unit_assume rows. Both may apply; concatenate with a separating
+  -- space.
+  local extra = ""
+  if expected then extra = extra .. " (expected " .. expected .. ")" end
+  if assumed then extra = extra .. " (assumed: " .. assumed .. ")" end
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
   table.insert(entries, {
     tree = prefix .. connector .. label,
     unit = has_unit and node.unit or nil,
     mark = mark,
-    rule = rule,
+    extra = extra,
   })
   local children = (present(node.children) and node.children) or {}
   for i, c in ipairs(children) do
@@ -171,9 +185,20 @@ local function render_expression(cv, node)
   for _, e in ipairs(entries) do
     local tree_pad = string.rep(" ", tree_w - vim.fn.strdisplaywidth(e.tree))
     local mid
+    local ranges
     if e.unit then
       local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(e.unit))
       mid = " : " .. e.unit .. unit_pad
+      -- Dim absence-of-information glyphs ("?" = unknown, "-" =
+      -- structural-no-unit) so real units pop. The unit cell starts at
+      -- the byte offset of (tree + tree_pad + " : "). Pads are ASCII
+      -- spaces so byte length = display width for that segment; the
+      -- tree label itself uses Unicode box-drawing chars, so we sum
+      -- their BYTE lengths to get the byte column.
+      if e.unit == "?" or e.unit == "-" then
+        local unit_col = #e.tree + #tree_pad + 3  -- 3 = #" : "
+        ranges = { { col = unit_col, end_col = unit_col + #e.unit, hl = "Comment" } }
+      end
     elseif unit_w > 0 then
       -- No unit on this row, but other rows have one — pad the whole
       -- ``: unit`` block with spaces so the marker still lines up.
@@ -181,7 +206,8 @@ local function render_expression(cv, node)
     else
       mid = ""
     end
-    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.rule)
+    emit(cv, e.tree .. tree_pad .. mid .. "  " .. e.mark .. e.extra,
+         nil, nil, ranges)
   end
 end
 
@@ -211,15 +237,30 @@ local function render_scope_vars(cv, scope, vars, depth)
     return
   end
   -- Compute column widths over the *displayed* strings so the markers
-  -- line up — "(none)" for unannotated counts toward the unit width.
-  local name_w, unit_w = 4, 4
+  -- line up — "?" for unannotated counts toward the unit width. The
+  -- normalized column (``unit ⟶ base-SI``) shows the base-SI expansion
+  -- — and, in scale mode, the multiplicative factor (``hPa ⟶
+  -- 100×kg·m⁻¹·s⁻²``) — for any row whose annotation differs from its
+  -- normalized form. Server-side ``unitNormalized`` already encodes the
+  -- scale-mode-aware rendering; we just show it.
+  local name_w, unit_w, norm_w = 4, 4, 0
   for _, v in ipairs(vars) do
     name_w = math.max(name_w, vim.fn.strdisplaywidth(v.name))
-    local shown_unit = present(v.unit) and v.unit or "(none)"
+    local shown_unit = present(v.unit) and v.unit or "?"
     unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit))
+    if present(v.unitNormalized) and v.unitNormalized ~= v.unit then
+      norm_w = math.max(norm_w, vim.fn.strdisplaywidth(v.unitNormalized))
+    end
   end
+  -- Precompute the column-block width for rows that DO carry a
+  -- normalized form, and pad rows that don't to the same width so
+  -- markers stay aligned. Two-space gap between source-unit and
+  -- normalized columns matches the side-by-side ``<td>`` convention
+  -- used by the VSCode panel — no arrow / separator glyph (column
+  -- spacing already conveys the second cell).
+  local norm_block_w = (norm_w > 0) and norm_w or 0
   for _, v in ipairs(vars) do
-    local unit = present(v.unit) and v.unit or "(none)"
+    local unit = present(v.unit) and v.unit or "?"
     -- Every row gets a marker: 🟢 annotated, 🟡 unannotated, 🔴 the
     -- annotation is present but failed to parse (U002). Matches the
     -- expression-tree convention so the whole panel reads the same.
@@ -233,9 +274,32 @@ local function render_scope_vars(cv, scope, vars, depth)
     end
     local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(v.name))
     local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
+    -- Normalized block: ``<norm>`` for rows with a differing
+    -- expansion; equal-width blank padding for rows without (or when
+    -- no row in this group has one — ``norm_block_w == 0``).
+    local norm_block = ""
+    if norm_block_w > 0 then
+      if present(v.unitNormalized) and v.unitNormalized ~= v.unit then
+        local nw = vim.fn.strdisplaywidth(v.unitNormalized)
+        norm_block = "  " .. v.unitNormalized
+                     .. string.rep(" ", norm_w - nw)
+      else
+        norm_block = "  " .. string.rep(" ", norm_block_w)
+      end
+    end
+    -- Dim absence-of-information glyphs (`?` = unknown, `-` =
+    -- structural-no-unit) so real units pop visually. The unit cell
+    -- starts at `#prefix + name_w + 2` (bytes — pads are ASCII).
+    local ranges
+    if unit == "?" or unit == "-" then
+      local prefix = pad .. string.format("  %4d  ", v.line)
+      local unit_col = #prefix + name_w + 2
+      ranges = { { col = unit_col, end_col = unit_col + #unit, hl = "Comment" } }
+    end
     emit(cv, pad .. string.format("  %4d  ", v.line)
-         .. v.name .. name_pad .. "  " .. unit .. unit_pad .. tail,
-         { line = v.line })
+         .. v.name .. name_pad .. "  " .. unit .. unit_pad
+         .. norm_block .. tail,
+         { line = v.line }, nil, ranges)
   end
 end
 
@@ -319,7 +383,7 @@ local INTERACTION_GROUPS = {
   { kind = "declares", label = "Declaration" },
   { kind = "contributes", label = "Write" },
   { kind = "requires", label = "Read" },
-  { kind = "uses", label = "Undetermined read" },
+  { kind = "uses", label = "Undetermined" },
 }
 
 local function render_interactions(cv, rep)
@@ -346,10 +410,17 @@ local function render_interactions(cv, rep)
       for _, p in ipairs(pts) do
         local loc = base_name(as_path(p.file)) .. ":" .. tostring(p.line)
         -- The Undetermined group has no derived unit by definition.
-        local unit = (group.kind ~= "uses" and present(p.unit))
-          and ("   " .. p.unit) or ""
+        local has_unit = group.kind ~= "uses" and present(p.unit)
+        local unit = has_unit and ("   " .. p.unit) or ""
         local target = { file = p.file, line = p.line, column = p.column }
-        emit(cv, "      " .. loc .. unit, target)
+        -- Dim absence-of-information glyphs ("?" / "-") so real units pop.
+        -- The unit starts at byte offset 6 ("      ") + #loc + 3 ("   ").
+        local ranges
+        if has_unit and (p.unit == "?" or p.unit == "-") then
+          local unit_col = 6 + #loc + 3
+          ranges = { { col = unit_col, end_col = unit_col + #p.unit, hl = "Comment" } }
+        end
+        emit(cv, "      " .. loc .. unit, target, nil, ranges)
         if present(p.snippet) and p.snippet ~= "" then
           emit(cv, "        " .. p.snippet, target, "Comment")
         end
@@ -432,30 +503,57 @@ local function render_imports(cv, imports)
   end
   for _, m in ipairs(order) do
     emit(cv, "  from " .. m)
-    local name_w, unit_w = 4, 4
+    local name_w, unit_w, norm_w = 4, 4, 0
     for _, im in ipairs(groups[m]) do
       name_w = math.max(name_w, vim.fn.strdisplaywidth(import_label(im)))
       unit_w = math.max(unit_w,
-        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "(none)"))
+        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "?"))
+      if present(im.unitNormalized) and im.unitNormalized ~= im.unit then
+        norm_w = math.max(norm_w, vim.fn.strdisplaywidth(im.unitNormalized))
+      end
     end
+    local norm_block_w = (norm_w > 0) and norm_w or 0
     for _, im in ipairs(groups[m]) do
       -- A subroutine (callable, no unit, not a missing annotation) reads
-      -- as "—" rather than "(none)" — it has no return value to annotate.
+      -- as "-" (structural-no-unit) rather than "?" — it has no return
+      -- value to annotate. Unannotated declarations get "?" (unknown).
       local unit
       if present(im.unit) then
         unit = im.unit
       elseif im.callable == true and im.kind == "annotated" then
-        unit = "—"
+        unit = "-"
       else
-        unit = "(none)"
+        unit = "?"
       end
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
       local label = import_label(im)
       local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(label))
       local unit_pad = string.rep(" ", unit_w - vim.fn.strdisplaywidth(unit))
-      emit(cv, "      " .. label .. name_pad .. "  " .. unit .. unit_pad .. tail,
+      -- Normalized block: ``<norm>`` for rows whose annotation
+      -- expands to something different (e.g. ``Pa`` → ``kg·m⁻¹·s⁻²``).
+      local norm_block = ""
+      if norm_block_w > 0 then
+        if present(im.unitNormalized) and im.unitNormalized ~= im.unit then
+          local nw = vim.fn.strdisplaywidth(im.unitNormalized)
+          norm_block = "  " .. im.unitNormalized
+                       .. string.rep(" ", norm_w - nw)
+        else
+          norm_block = "  " .. string.rep(" ", norm_block_w)
+        end
+      end
+      -- Dim absence-of-information glyphs so real units pop. Prefix is
+      -- 6 spaces + label_padded(name_w) + "  " — all ASCII, so byte
+      -- count = display width.
+      local ranges
+      if unit == "?" or unit == "-" then
+        local unit_col = 6 + name_w + 2
+        ranges = { { col = unit_col, end_col = unit_col + #unit, hl = "Comment" } }
+      end
+      emit(cv, "      " .. label .. name_pad .. "  " .. unit .. unit_pad
+           .. norm_block .. tail,
            { file = present(im.file) and im.file or nil,
-             line = im.line, column = im.column })
+             line = im.line, column = im.column },
+           nil, ranges)
     end
   end
 end
@@ -541,6 +639,15 @@ local function paint(cv, stale)
       vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, 0, {
         end_line = idx, hl_group = hl,
       })
+    end
+    -- Per-row sub-range highlights (e.g. dimming the unit glyph ``?``/``-``
+    -- inside an otherwise normal row).
+    for idx, ranges in pairs(cv.range_hls or {}) do
+      for _, r in ipairs(ranges) do
+        vim.api.nvim_buf_set_extmark(state.buf, state.ns, idx - 1, r.col, {
+          end_col = r.end_col, hl_group = r.hl,
+        })
+      end
     end
   end
 end
