@@ -29,6 +29,8 @@ local M = {}
 ---@field filetypes string[]                   -- buffers DimFort attaches to
 ---@field root_markers string[]                -- files marking the workspace root
 ---@field auto_attach boolean                  -- attach automatically via FileType autocmd
+---@field hover_border "rounded"|"single"|"double"|"solid"|"shadow"|"none"
+                                               -- border style for DimFort hover floats
 local defaults = {
   executable = "dimfort",
   -- Default UX stance (unified across companions 2026-05-26): the side
@@ -54,6 +56,12 @@ local defaults = {
   filetypes = { "fortran" },
   root_markers = { ".dimfort.toml", ".git" },
   auto_attach = true,
+  -- DimFort hover floats default to a rounded border so they read as
+  -- a discrete card even when the user's colorscheme leaves
+  -- ``NormalFloat`` un-tinted (a common gap in popular Nvim themes).
+  -- Set ``hover_border = "none"`` to opt out and inherit whatever
+  -- styling the user's colorscheme provides.
+  hover_border = "rounded",
 }
 
 ---@type DimFortConfig
@@ -415,6 +423,20 @@ local function on_attach(args)
     }, ns)
   end
 
+  -- Hover border: install a buffer-local ``K`` mapping that calls
+  -- vim.lsp.buf.hover with the configured border. Buffer-local so it
+  -- only applies to DimFort-attached buffers (other LSPs' hovers
+  -- untouched) and so ``vim.lsp.buf.hover``'s ``config`` reliably
+  -- flows through to ``open_floating_preview`` (the global-handler
+  -- wrap approach was unreliable across Neovim versions because the
+  -- LSP response-routing doesn't always pass ``config`` through).
+  if M.config.hover_border ~= "none"
+    and vim.lsp.buf and vim.lsp.buf.hover then
+    pcall(vim.keymap.set, "n", "K", function()
+      vim.lsp.buf.hover({ border = M.config.hover_border })
+    end, { buffer = args.buf, desc = "DimFort hover" })
+  end
+
   if not (vim.lsp.inlay_hint and vim.lsp.inlay_hint.enable) then return end
   pcall(vim.lsp.inlay_hint.enable,
         M.config.inlay_hints_enabled,
@@ -443,6 +465,11 @@ function M.setup(opts)
     ctermfg = 245,
     italic = true,
   })
+
+  -- Hover border is installed per-buffer in ``on_attach`` (see comment
+  -- there) — buffer-local so it scopes correctly to DimFort buffers
+  -- without touching other LSPs and so vim.lsp.buf.hover's config
+  -- reaches open_floating_preview reliably across Neovim versions.
 
   vim.api.nvim_create_user_command("DimFortCheckWorkspace",
     function() M.check_workspace() end,
@@ -523,10 +550,28 @@ function M.setup(opts)
     callback = on_attach,
   })
   if M.config.auto_attach then
-    vim.api.nvim_create_autocmd("FileType", {
+    -- FileType fires on initial buffer load (covers the ``-c`` startup
+    -- path and any direct ``:edit`` of a not-yet-buffered file).
+    -- BufEnter additionally covers entering an already-loaded buffer
+    -- whose FileType event has already fired and won't fire again —
+    -- e.g. navigating between files via netrw's directory listing
+    -- (``:e .``), where the second-and-subsequent fortran buffers
+    -- otherwise leave the LSP unattached. ``M.attach`` is idempotent
+    -- (``vim.lsp.start`` dedupes by name+root_dir AND by bufnr); the
+    -- cheap pre-check below avoids even that round-trip on every
+    -- BufEnter into an already-attached buffer.
+    vim.api.nvim_create_autocmd({ "FileType", "BufEnter" }, {
       group = group,
-      pattern = M.config.filetypes,
-      callback = function(ev) M.attach(ev.buf) end,
+      callback = function(ev)
+        local buf = ev.buf
+        if not vim.tbl_contains(M.config.filetypes, vim.bo[buf].filetype) then
+          return
+        end
+        if #vim.lsp.get_clients({ name = "dimfort", bufnr = buf }) > 0 then
+          return
+        end
+        M.attach(buf)
+      end,
     })
   end
 end
