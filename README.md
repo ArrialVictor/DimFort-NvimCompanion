@@ -6,6 +6,10 @@ Neovim companion for [DimFort](https://github.com/ArrialVictor/DimFort) —
 the dimensional-homogeneity checker for Fortran. Thin LSP client +
 user commands; the heavy lifting is done by the `dimfort lsp` server.
 
+Want a hands-on look first? See the [DimFort tour](https://github.com/ArrialVictor/DimFort/blob/main/demos/README.md) —
+a short, self-contained Fortran file that exercises the most common
+diagnostics, with a line-by-line walkthrough.
+
 > **Neovim-only.** The plugin uses Neovim's built-in `vim.lsp.*` Lua
 > APIs, which classic Vim doesn't share. Classic Vim users can still
 > talk to `dimfort lsp` via a third-party LSP client like
