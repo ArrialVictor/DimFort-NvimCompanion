@@ -7,7 +7,7 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
-## [Unreleased]
+## [0.2.1] — 2026-05-30
 
 ### Polish: render `assumed` marker (🔵) + `(assumed: <reason>)` tail on the RHS row
 
@@ -65,6 +65,63 @@ sees what the call-site demanded without reading the diagnostic
 text. Mismatched argument rows paint 🟡 (the new 🟡-on-`expected`
 override, server-side; see DimFort design/markers.md §4.4), so a
 row with `(expected …)` will never read `marker: "ok"`.
+
+### Add: `hover_border` setup option, default `"rounded"`
+
+A new `hover_border` field in `require("dimfort").setup({ … })`
+controls the border style of DimFort hover floats. Defaults to
+`"rounded"` so hover popups read as a distinct card regardless of
+the user's colorscheme `NormalFloat` styling. Set to `"none"` to
+inherit colorscheme defaults. Installed via a buffer-local `K`
+mapping on attach, so it's scoped to DimFort-managed buffers and
+doesn't touch other LSP servers' hovers.
+
+### Polish: auto-attach now listens on `BufEnter` too
+
+The auto-attach autocmd used to listen only on `FileType`. That
+event doesn't always re-fire when navigating to an already-buffered
+file (e.g. via netrw's `:e .` directory listing or some buffer
+switchers), so the second-and-subsequent Fortran buffer in a session
+would leave the LSP unattached. Now also listens on `BufEnter` with
+a cheap "already-attached?" pre-check — first BufEnter attaches,
+subsequent BufEnters into the same buffer no-op.
+
+### Polish: scope/imports `unitNormalized` column + uniform scale-mode display
+
+The Scope-var and Imports rows now render the `unitNormalized` field
+as a second cell next to the source unit when they differ (e.g.
+`Pa  kg·m⁻¹·s⁻²`). Server-side gating means the multiplicative
+factor appears only when scale mode is on (`hPa  100×kg·m⁻¹·s⁻²`
+vs `hPa  kg·m⁻¹·s⁻²`) — the panel just renders whatever the server
+emits, so the same rule lands across every surface.
+
+### Polish: module procedures show up in the Scope panel
+
+For module/program scopes, the panel now lists the module's defined
+functions / subroutines as `name(args)` rows alongside variables,
+mirroring how the Imports section formats imported procedures.
+Zero renderer changes — the server emits these as pre-formatted
+rows in `ScopeVar` shape.
+
+### Change: Interactions label `"Undetermined read"` → `"Undetermined"`
+
+The panel's Interactions section header for the `uses` kind now
+reads `Undetermined` (was `Undetermined read`). Matches the rename
+on the server side; the underlying `kind` value is unchanged.
+
+### Add: link to the canonical `demos/tour.f90` in the README
+
+The README's intro now points at `demos/tour.f90` in the DimFort
+repo — a short, self-contained moist-thermodynamics file that
+exercises six high-impact diagnostics on a single page. Going
+forward, README screenshots will be taken from this file so they
+stay reproducible.
+
+### Docs: project rule — no validation-workspace name in tracked files
+
+Internal hygiene: an explicit reference to the specific Fortran
+codebase used as the validation target in `CHANGELOG.md` was
+replaced with neutral phrasing. No behavioural change.
 
 ## [0.2.0] — 2026-05-28
 
