@@ -139,7 +139,7 @@ here as Lua config options + restart-on-change toggles.
 - **`cache_mode` setting** — content-hash cache for the workspace
   check: `"off"` (default), `"read-only"`, or `"read-write"`. With
   `"read-write"`, warm re-runs replay cached diagnostics for
-  unchanged files (LMDZ-scale: ~33 s cold → ~20 s warm).
+  unchanged files (a benchmark workspace measured ~33 s cold → ~20 s warm).
 - **`cache_dir` setting** — optional cache directory override.
   Empty (default) lets the server use `.dimfort-cache/` under the
   workspace root.
