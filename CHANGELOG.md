@@ -7,6 +7,26 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [0.2.2] — 2026-06-03
+
+### Passthrough: DimFort 0.2.2's configurable comment delimiters
+
+This release tracks DimFort 0.2.2. The plugin itself is unchanged
+— the new `[parser]` keys
+(`unit_comment_delimiters` / `unit_assume_comment_delimiters` /
+`unit_affine_comment_delimiters`) are read by the server from
+`.dimfort.toml`, no client config is added.
+
+The new U021 / U023 / U002-suggested-rewrite diagnostics render
+through `vim.lsp.diagnostic`; the U002 "Replace with `<X>`"
+quick-fix surfaces via `vim.lsp.buf.code_action()` (it's a direct
+`WorkspaceEdit`, no command delegation) so it just works.
+
+### Min server version
+
+`dimfort >= 0.2.2` recommended. Earlier servers still run as a
+fallback, but won't expose the new toml keys.
+
 ## [0.2.1] — 2026-05-30
 
 ### Polish: render `assumed` marker (🔵) + `(assumed: <reason>)` tail on the RHS row
