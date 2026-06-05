@@ -7,6 +7,23 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [0.2.3] — 2026-06-06
+
+### Passthrough: DimFort 0.2.3's polymorphism feature + audit-fix series
+
+This release tracks DimFort 0.2.3. The plugin itself is unchanged
+— parametric polymorphism (`'a`, `'b`, …) in `@unit{}` annotations
+is read by the server; no client config is added. The four new
+diagnostic codes (H020 polymorphic-call-site unification failure,
+H021 type-variable-in-forbidden-position, H022 polymorphic
+type-variable-must-be-rational-exponent, H023 polymorphic-call-site
+type-variable-must-be-rational) surface through the existing
+diagnostic channel.
+
+The 40-item pre-release audit fix series and the 37 in-source
+docstring-drift fixes (server-side) similarly need no client
+adjustment.
+
 ## [0.2.2] — 2026-06-03
 
 ### Passthrough: DimFort 0.2.2's configurable comment delimiters
