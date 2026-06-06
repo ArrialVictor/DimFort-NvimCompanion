@@ -7,6 +7,23 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [0.2.3.1] — 2026-06-07
+
+### Render the new `collides` ExpressionNode field and dim trailing `?`
+
+Tracks DimFort 0.2.3.1's H020 hover/panel rewrite. Two changes:
+
+- **`(collides with …)` row tail** on H020 polymorphic-conflict rows.
+  The server now ships a `collides` field on `ExpressionNode`; the
+  panel renders it as `(collides with <X>)` (Comment highlight on the
+  trailer), alongside the existing `(expected …)` and `(assumed: …)`
+  forms. Forward-compatible: pre-0.2.3.1 servers omit the field and
+  the trailer doesn't render.
+- **Dimmed trailing `?`** on the new `'a = ?` unbound-polymorphic-return
+  form. The Comment highlight applied to bare-`?` / bare-`-` cells is
+  now scoped to the trailing `?` only when the unit ends in `= ?`;
+  the bound prefix stays full-weight.
+
 ## [0.2.3] — 2026-06-06
 
 ### Passthrough: DimFort 0.2.3's polymorphism feature + audit-fix series
