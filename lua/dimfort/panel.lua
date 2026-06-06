@@ -379,11 +379,26 @@ local function render_diagnostics(cv, diags)
       or (sev == "warning") and "DiagnosticWarn" or "DiagnosticInfo"
     local code = present(d.code) and d.code or "?"
     local msg = present(d.message) and d.message or ""
-    emit(cv, "  " .. glyph .. " " .. code .. ": " .. msg, {
+    -- Multi-line diagnostic messages (e.g. H020's per-arg conflict
+    -- list — server emits each arg on its own line with a leading
+    -- 2-space indent). ``nvim_buf_set_lines`` rejects strings with
+    -- embedded ``\n``, so split into one panel row per source line
+    -- and prefix each continuation line with the same 2-space
+    -- gutter the message indent uses. Every row carries the same
+    -- target dict so clicking any of them navigates to the
+    -- diagnostic span.
+    local target = {
       line = d.line, column = d.column,
       end_line = present(d.endLine) and d.endLine or nil,
       end_column = present(d.endColumn) and d.endColumn or nil,
-    }, hl)
+    }
+    local lines = vim.split(msg, "\n", { plain = true })
+    emit(cv,
+      "  " .. glyph .. " " .. code .. ": " .. (lines[1] or ""),
+      target, hl)
+    for i = 2, #lines do
+      emit(cv, "  " .. lines[i], target, hl)
+    end
   end
 end
 
