@@ -48,42 +48,55 @@ local function tier_sign_name(tier) return "DimFortCover" .. tier:sub(1,1):upper
 local function tier_sign_hl(tier)   return "DimFortCover" .. tier:sub(1,1):upper() .. tier:sub(2) end
 local function tier_bg_hl(tier)     return "DimFortCoverBg" .. tier:sub(1,1):upper() .. tier:sub(2) end
 
--- Default tier colours. Picked to match the VSCompanion's SVGs so the
--- layer reads identically across editors. The background highlight
--- uses a ``blend = 85`` so the tint sits subtly behind the text
--- rather than dominating the line — like the rgba(.., .., .., 0.10)
--- the VSCompanion uses.
-local DEFAULT_COLOURS = {
+-- Default tier colours for the gutter dot. Picked to match the
+-- VSCompanion's SVGs so the layer reads identically across editors.
+local FG_COLOURS = {
   green  = "#28a745",
   yellow = "#ffc107",
   red    = "#dc3545",
   blue   = "#0d6efd",
 }
 
--- Install the four sign defs + the eight highlight groups (one
--- foreground hl for the gutter dot, one background hl for the tint).
--- Idempotent — safe to call multiple times.
+-- Default tier background tints for ``background`` mode. Pre-darkened
+-- hexes rather than the full-saturation FG_COLOURS because Neovim's
+-- ``line_hl_group`` does NOT respect the ``blend`` attribute (blend
+-- only applies to floating windows and a few conceal contexts), so a
+-- saturated bg would dominate the line. These shades read as a
+-- subtle tint on dark backgrounds; users on light themes can
+-- override via ``:hi DimFortCoverBg<Tier> guibg=...``.
+local BG_COLOURS = {
+  green  = "#0a3320",
+  yellow = "#3b2e00",
+  red    = "#3b0a13",
+  blue   = "#0a1c3b",
+}
+
+-- Install the four sign defs + the eight highlight groups. Idempotent
+-- — safe to call multiple times. Re-run from a ColorScheme autocmd so
+-- the highlights survive ``:hi clear`` (which every colorscheme runs
+-- on activation, wiping unrelated definitions including ours).
 local function install_definitions()
   for _, tier in ipairs(TIERS) do
-    local colour = DEFAULT_COLOURS[tier]
-    -- Foreground highlight for the sign-column dot. Users who want
-    -- to override the colour can ``:hi DimFortCoverGreen guifg=...``
-    -- after setup; we use ``default = true`` so we don't clobber.
+    -- Foreground highlight for the sign-column dot. NO ``default =
+    -- true`` here: that flag makes the definition vulnerable to
+    -- ``:hi clear`` wiping it, after which the sign renders with
+    -- terminal-default colour (white-on-default). Users who want
+    -- to override can ``:hi DimFortCoverGreen guifg=...`` after
+    -- setup — that takes precedence over a plain ``nvim_set_hl``.
     vim.api.nvim_set_hl(0, tier_sign_hl(tier), {
-      fg = colour,
-      default = true,
+      fg = FG_COLOURS[tier],
     })
-    -- Line-background tint. ``blend = 85`` makes the bg sit subtly
-    -- behind the text. ``default = true`` so users can override.
+    -- Line-background tint. Uses a pre-darkened hex (see
+    -- BG_COLOURS) because ``line_hl_group`` does NOT respect the
+    -- ``blend`` attribute, so a saturated bg dominates the line.
     vim.api.nvim_set_hl(0, tier_bg_hl(tier), {
-      bg = colour,
-      blend = 85,
-      default = true,
+      bg = BG_COLOURS[tier],
     })
-    -- Sign definition. ``●`` is a U+25CF Black Circle, matching the
-    -- VSCompanion's SVG dot for visual parity. Users with terminals
-    -- that render the glyph oddly can override via
-    -- ``vim.fn.sign_define(..., { text = '+', ... })`` after setup.
+    -- Sign definition. ``●`` is a U+25CF Black Circle, matching
+    -- the VSCompanion's SVG dot for visual parity. ``sign_define``
+    -- resolves ``texthl`` by name at sign-render time, so re-
+    -- defining the same name on subsequent ``install_definitions``
+    -- calls is harmless.
     vim.fn.sign_define(tier_sign_name(tier), {
       text = "●",
       texthl = tier_sign_hl(tier),
@@ -228,6 +241,22 @@ function M.setup(opts)
   install_definitions()
 
   local group = vim.api.nvim_create_augroup("DimFortCoverage", { clear = true })
+
+  -- Colorscheme swaps call ``:hi clear``, which wipes every highlight
+  -- group — including ours. Re-install the sign defs + highlights
+  -- whenever the colorscheme changes so the gutter dots and the
+  -- background tints keep their colour. Also re-paints every
+  -- visible buffer so the new highlights show without waiting for
+  -- the next edit.
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    group = group,
+    callback = function()
+      install_definitions()
+      if M.config.mode ~= "disabled" then
+        M.refresh_all()
+      end
+    end,
+  })
 
   -- The primary refresh trigger. Neovim 0.10+ fires DiagnosticChanged
   -- after every vim.diagnostic.set, which is what the LSP client
