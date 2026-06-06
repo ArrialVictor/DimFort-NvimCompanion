@@ -148,11 +148,14 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
   local has_unit = present(node.unit)
   local expected = present(node.expected) and node.expected or nil
   local assumed = present(node.assumed) and node.assumed or nil
-  -- Row tail: '(expected …)' on mismatch, '(assumed: <reason>)' on
-  -- @unit_assume rows. Both may apply; concatenate with a separating
-  -- space.
+  local collides = present(node.collides) and node.collides or nil
+  -- Row tail: '(expected …)' on call-arg / RHS mismatch, '(collides
+  -- with …)' on H020 polymorphic-call-site conflicts, '(assumed:
+  -- <reason>)' on @unit_assume rows. May apply together; concatenate
+  -- with separating spaces.
   local extra = ""
   if expected then extra = extra .. " (expected " .. expected .. ")" end
+  if collides then extra = extra .. " (collides with " .. collides .. ")" end
   if assumed then extra = extra .. " (assumed: " .. assumed .. ")" end
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
