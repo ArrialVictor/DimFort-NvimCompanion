@@ -201,6 +201,14 @@ local function render_expression(cv, node)
       if e.unit == "?" or e.unit == "-" then
         local unit_col = #e.tree + #tree_pad + 3  -- 3 = #" : "
         ranges = { { col = unit_col, end_col = unit_col + #e.unit, hl = "Comment" } }
+      elseif #e.unit >= 4 and string.sub(e.unit, -4) == " = ?" then
+        -- ``'a = ?`` (H020 unbound polymorphic return): dim only the
+        -- trailing ``?`` so it reads at the same visual weight as a
+        -- bare ``?``; the bound prefix stays full-weight. The suffix
+        -- check is tight enough not to false-positive — concrete units
+        -- never end in ``= ?``.
+        local q_col = #e.tree + #tree_pad + 3 + #e.unit - 1
+        ranges = { { col = q_col, end_col = q_col + 1, hl = "Comment" } }
       end
     elseif unit_w > 0 then
       -- No unit on this row, but other rows have one — pad the whole
