@@ -148,11 +148,14 @@ local function collect_expression(node, prefix, is_last, is_root, entries)
   local has_unit = present(node.unit)
   local expected = present(node.expected) and node.expected or nil
   local assumed = present(node.assumed) and node.assumed or nil
-  -- Row tail: '(expected …)' on mismatch, '(assumed: <reason>)' on
-  -- @unit_assume rows. Both may apply; concatenate with a separating
-  -- space.
+  local collides = present(node.collides) and node.collides or nil
+  -- Row tail: '(expected …)' on call-arg / RHS mismatch, '(collides
+  -- with …)' on H020 polymorphic-call-site conflicts, '(assumed:
+  -- <reason>)' on @unit_assume rows. May apply together; concatenate
+  -- with separating spaces.
   local extra = ""
   if expected then extra = extra .. " (expected " .. expected .. ")" end
+  if collides then extra = extra .. " (collides with " .. collides .. ")" end
   if assumed then extra = extra .. " (assumed: " .. assumed .. ")" end
   local mark = marker_for(node)
   local label = present(node.label) and node.label or "?"
@@ -198,6 +201,14 @@ local function render_expression(cv, node)
       if e.unit == "?" or e.unit == "-" then
         local unit_col = #e.tree + #tree_pad + 3  -- 3 = #" : "
         ranges = { { col = unit_col, end_col = unit_col + #e.unit, hl = "Comment" } }
+      elseif #e.unit >= 4 and string.sub(e.unit, -4) == " = ?" then
+        -- ``'a = ?`` (H020 unbound polymorphic return): dim only the
+        -- trailing ``?`` so it reads at the same visual weight as a
+        -- bare ``?``; the bound prefix stays full-weight. The suffix
+        -- check is tight enough not to false-positive — concrete units
+        -- never end in ``= ?``.
+        local q_col = #e.tree + #tree_pad + 3 + #e.unit - 1
+        ranges = { { col = q_col, end_col = q_col + 1, hl = "Comment" } }
       end
     elseif unit_w > 0 then
       -- No unit on this row, but other rows have one — pad the whole
@@ -368,11 +379,26 @@ local function render_diagnostics(cv, diags)
       or (sev == "warning") and "DiagnosticWarn" or "DiagnosticInfo"
     local code = present(d.code) and d.code or "?"
     local msg = present(d.message) and d.message or ""
-    emit(cv, "  " .. glyph .. " " .. code .. ": " .. msg, {
+    -- Multi-line diagnostic messages (e.g. H020's per-arg conflict
+    -- list — server emits each arg on its own line with a leading
+    -- 2-space indent). ``nvim_buf_set_lines`` rejects strings with
+    -- embedded ``\n``, so split into one panel row per source line
+    -- and prefix each continuation line with the same 2-space
+    -- gutter the message indent uses. Every row carries the same
+    -- target dict so clicking any of them navigates to the
+    -- diagnostic span.
+    local target = {
       line = d.line, column = d.column,
       end_line = present(d.endLine) and d.endLine or nil,
       end_column = present(d.endColumn) and d.endColumn or nil,
-    }, hl)
+    }
+    local lines = vim.split(msg, "\n", { plain = true })
+    emit(cv,
+      "  " .. glyph .. " " .. code .. ": " .. (lines[1] or ""),
+      target, hl)
+    for i = 2, #lines do
+      emit(cv, "  " .. lines[i], target, hl)
+    end
   end
 end
 
