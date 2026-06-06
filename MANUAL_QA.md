@@ -792,6 +792,12 @@ Hover with `K` (or `vim.lsp.buf.hover()`).
       RHS row shows 🔴 from the H020 propagation. Assignment row
       inherits 🔴. No spurious `(expected ...)` trailers on any arg
       row.
+- [ ] **Hover on a polymorphic var usage** — cursor on `x` inside
+      Case A's body (`mean = half * (x + y)`). Short hover shows the
+      same row shape as a concrete-var hover — `x : 'a` 🟢, no
+      trailer. Same on `y`. (Polymorphism shows in the unit column
+      via the `'a` tyvar text; otherwise reads as any normal
+      identifier hover.)
 
 ### Side panel
 
@@ -822,6 +828,26 @@ with `'a` in the unit column.
       `l_in : m`, `r : kg`. The Expression section surfaces the
       H020 conflict on the call_expression child of the assignment
       (same UX as Case C's subroutine_call).
+- [ ] **Polymorphic vars render full-weight in the unit column** —
+      across Cases A / B / E, the `'a` cells are rendered the same
+      visual weight as concrete units like `m` or `kg` on Cases C / D
+      / F / G. The Comment highlight only fires on bare `?` / bare
+      `-` / trailing `= ?`; a plain `'a` is a real annotation and
+      stays full-weight.
+
+### Interactive — inlay hints
+
+- [ ] **Cursor in Case A's body** (any line 18–20). Run
+      `:DimFortToggleInlayHints` — `[unit]`-style virtual text appears
+      after each variable use. Polymorphic vars (`x`, `y`, `mean`)
+      show `['a]`; the local `half` shows `[1]`. The `'a` virtual
+      text renders full-weight (no Comment highlight — polymorphism
+      is a real annotation, not unknown).
+- [ ] **Cursor in Case F's body** (`r = avg_two_f(a_in, b_in)`). With
+      inlays still on, `a_in`, `b_in`, `r` show `[m]` (concrete);
+      same visual weight as the polymorphic case above.
+- [ ] **Disable when done** — re-run `:DimFortToggleInlayHints`. The
+      QA's earlier sections assume the default (off).
 
 ### Interactive — H021 / H022 probes
 
