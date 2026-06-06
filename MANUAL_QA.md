@@ -856,11 +856,14 @@ with `'a` in the unit column.
       `real :: bad_global !< @unit{'a}`. Save. Expect an **H021
       error** on that line: type variables aren't allowed in module-
       level scope (only in routine arg lists / locals). Undo with `u`.
-- [ ] **H022 probe (tyvar exponent must be rational)** — change
-      Case A's `mean` annotation to `!< @unit{'a^kappa}`. Save.
-      Expect an **H022 error** stating the tyvar's exponent must be
-      a literal rational (the symbolic `kappa` isn't supported in
-      the polymorphism path). Undo with `u`.
+- [ ] **H022 probe (cannot bind tyvar to affine unit)** — change
+      Case D's `a_in` annotation to `!< @unit{degC}`. Save. Expect
+      an **H022 error** on the `call avg_two(a_in, b_in, out_mean)`
+      site (Case D's call) stating that `'a` cannot bind to an
+      affine unit and offering a fix hint to convert to the base
+      unit (`K`) or pass as a delta. Type variables range over the
+      multiplicative algebra only; affine units (degC, degF) inhabit
+      a separate layer. Undo with `u`.
 
 ### Known gaps in this annex
 

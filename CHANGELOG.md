@@ -20,7 +20,9 @@ Server-side (read transparently — no client config added):
 parametric polymorphism (`'a`, `'b`, …) in `@unit{}` annotations,
 four new diagnostic codes (H020 polymorphic-call-site unification
 failure, H021 type-variable-in-forbidden-position, H022
-polymorphic-tyvar-must-be-rational-exponent, H023
+cannot-bind-tyvar-to-affine-unit (e.g. passing a `degC` actual into
+a `'a` slot — type variables range over the multiplicative algebra
+only), H023
 dishonest-polymorphic-body), the 40-item pre-release audit fix
 series, and the 37 in-source docstring-drift fixes. The eight
 0.2.3.1 follow-up fixes (panel/hover marker propagation, H020
