@@ -877,3 +877,73 @@ with `'a` in the unit column.
 - **Cross-file polymorphism** — this scene is single-file. Add a
   separate `caller.f90` + `lib.f90` pair if cross-file lookup of a
   polymorphic signature needs verifying.
+
+## Coverage visualisation (0.2.4)
+
+Coverage requires the DimFort server with the `dimfort/lineStatus`
+method (server PR #53 merged). The companion mode is `disabled` by
+default; the tests below set it manually.
+
+### Three-mode cycle
+
+With `qa.f90` open:
+
+- [ ] Run `:DimFortCycleCoverage` once → notification reads
+      `DimFort: coverage gutter`. Confirm:
+      - **Green dots** in the sign column on annotated-declaration
+        lines (`real :: c_sound  !< @unit{m/s}` etc.) and on clean
+        expression lines (`d = c_sound * t`,
+        `q = 0.5 * rho * v * v`, the `combo`, `ln_p`, `rt_e2`
+        calculations).
+      - **Yellow dots** on `t_celsius`'s declaration (U005 — no
+        annotation) and the `t_celsius = t - 273.15` line (H010
+        D1.5 — bare literal cast). With U005 propagation (server
+        PR #55), every other line referencing `t_celsius` also
+        paints yellow.
+      - **Red dot** on the `bogus = c_sound * t` line (H001).
+      - Out-of-scope lines (`module`, `contains`, `end function`,
+        `end subroutine`, `end module`, blank lines, comment-only
+        lines) carry no sign in the sign column.
+- [ ] Run `:DimFortCycleCoverage` again → notification reads
+      `DimFort: coverage background`. Confirm:
+      - The gutter dots are gone.
+      - Each in-scope line carries a low-alpha background tint in
+        the matching tier colour. `gutter` and `background` are
+        mutually exclusive — pick the visual weight you prefer.
+- [ ] Run `:DimFortCycleCoverage` a third time → notification reads
+      `DimFort: coverage disabled`. All coverage decorations clear.
+
+### U005 propagation regression (PR #55)
+
+This test verifies the qa.f90 transition: removing an annotation
+should turn previously-red use sites yellow, never green.
+
+- [ ] In `gutter` mode, delete `@unit{s}` from the `t` declaration
+      line (`real :: t          !< @unit{s}` → `real :: t`).
+      Wait for the diagnostic-change autocmd to fire. Confirm:
+      - The `bogus = c_sound * t` line goes red → **yellow** (must
+        NOT turn green — `t` is now unannotated and propagates
+        yellow to every use site).
+      - The `d = c_sound * t` line also paints yellow.
+      - Restore the annotation; the lines should revert to red /
+        green respectively.
+
+### No LSP restart on mode flip
+
+- [ ] Run `:DimFortStatus` and note the `active client id`.
+- [ ] Cycle the coverage mode three times.
+- [ ] Run `:DimFortStatus` again — the `active client id` should be
+      the same (the LSP was not restarted). Cycling other settings
+      such as hover via `:DimFortCycleHover` DOES restart the
+      server; this contrast is the verification.
+
+### Highlight customisation
+
+- [ ] After cycling to `gutter` mode, override one of the colours:
+      `:hi DimFortCoverGreen guifg=#00ff00`. The green dots in the
+      sign column should repaint with the new colour without
+      needing a restart.
+- [ ] Same for the background tier: cycle to `background` and run
+      `:hi DimFortCoverBgGreen guibg=#003300`. The background tint
+      on green lines should refresh on the next edit (the autocmd
+      fires once Neovim recomputes diagnostics).

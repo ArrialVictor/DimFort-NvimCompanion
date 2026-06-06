@@ -132,6 +132,7 @@ from your own autocommand or keymap.
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
 | `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
+| `:DimFortCycleCoverage`                  | Cycle coverage visualisation (`disabled` → `gutter` → `background`); companion-only (no LSP restart). |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
@@ -187,6 +188,16 @@ Same surface as the VSCode companion:
 - Inlay hints, go-to-definition, completion, code actions (toggleable).
 - The cursor-following **side panel** above.
 - Workspace-wide cross-file checks driven from `use` clauses.
+- **Coverage visualisation** (requires DimFort 0.2.4+) — per-line
+  status in one of two mutually-exclusive visual encodings:
+  - **Gutter** — coloured dot in the sign column per line, in four
+    tiers (green / yellow / red / blue) matching the panel markers.
+  - **Background** — low-alpha line tint behind the text in the same
+    four tiers.
+  Off by default; toggle with `:DimFortCycleCoverage`. Customise the
+  colours via the highlight groups `DimFortCoverGreen` /
+  `DimFortCoverYellow` / `DimFortCoverRed` / `DimFortCoverBlue` (for
+  the gutter dots) and `DimFortCoverBg*` (for the line tint).
 
 ## Notes
 
