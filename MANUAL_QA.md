@@ -641,3 +641,210 @@ unit_comment_delimiters = [
       `:DimFortRestart`. The `@unit{m/s}` hover on `ws` should
       now show no unit (the canonical form is no longer
       configured in this project). Uncomment to restore.
+
+## Polymorphism (0.2.3)
+
+Save this as `poly_qa.f90` in a fresh folder (no `.dimfort.toml`
+needed — defaults are fine). The scene covers four cases: clean
+polymorphic body, dishonest body, caller mismatch, clean caller.
+
+```fortran
+module poly_qa
+contains
+
+  ! Case A — cleanly polymorphic body. No fires expected.
+  subroutine avg_two(x, y, mean)
+    real, intent(in)  :: x     !< @unit{'a}
+    real, intent(in)  :: y     !< @unit{'a}
+    real, intent(out) :: mean  !< @unit{'a}
+    real :: half  !< @unit{1}
+    half = 0.5
+    mean = half * (x + y)
+  end subroutine avg_two
+
+  ! Case B — dishonest body: signature claims 'a but body adds {kg}.
+  subroutine biased_avg(x, y, mean)
+    real, intent(in)  :: x        !< @unit{'a}
+    real, intent(in)  :: y        !< @unit{'a}
+    real, intent(out) :: mean     !< @unit{'a}
+    real, parameter   :: bias_kg = 1.0  !< @unit{kg}
+    real :: half  !< @unit{1}
+    half = 0.5
+    mean = half * (x + y) + bias_kg
+  end subroutine biased_avg
+
+  ! Case C — caller passes kg into one 'a slot and m into another.
+  subroutine caller_mismatch(m_in, l_in, out_mean)
+    real, intent(in)  :: m_in      !< @unit{kg}
+    real, intent(in)  :: l_in      !< @unit{m}
+    real, intent(out) :: out_mean  !< @unit{kg}
+    call avg_two(m_in, l_in, out_mean)
+  end subroutine caller_mismatch
+
+  ! Case D — caller passes consistent {m} to both slots.
+  subroutine caller_clean(a_in, b_in, out_mean)
+    real, intent(in)  :: a_in      !< @unit{m}
+    real, intent(in)  :: b_in      !< @unit{m}
+    real, intent(out) :: out_mean  !< @unit{m}
+    call avg_two(a_in, b_in, out_mean)
+  end subroutine caller_clean
+
+  ! ------------------------------------------------------------------
+  ! Function variants — same shape as Cases A-D but on a polymorphic
+  ! FUNCTION. The call lives in an assignment RHS (call_expression
+  ! node), and the function returns 'a too — exercises the return-
+  ! side rendering, distinct from the subroutine_call path above.
+  ! ------------------------------------------------------------------
+
+  ! Case E — polymorphic function (clean body, no fires).
+  function avg_two_f(x, y) result(out)
+    real, intent(in) :: x    !< @unit{'a}
+    real, intent(in) :: y    !< @unit{'a}
+    real             :: out  !< @unit{'a}
+    out = 0.5 * (x + y)
+  end function avg_two_f
+
+  ! Case F — clean caller of the function. No fires expected; mirrors
+  ! Case D for the function path.
+  subroutine caller_func_clean(a_in, b_in, r)
+    real, intent(in)  :: a_in   !< @unit{m}
+    real, intent(in)  :: b_in   !< @unit{m}
+    real, intent(out) :: r      !< @unit{m}
+    r = avg_two_f(a_in, b_in)
+  end subroutine caller_func_clean
+
+  ! Case G — H020 caller of the function. arg 1 (kg) and arg 2 (m)
+  ! force 'a to inconsistent units; mirrors Case C for the function
+  ! path.
+  subroutine caller_func_mismatch(m_in, l_in, r)
+    real, intent(in)  :: m_in   !< @unit{kg}
+    real, intent(in)  :: l_in   !< @unit{m}
+    real, intent(out) :: r      !< @unit{kg}
+    r = avg_two_f(m_in, l_in)
+  end subroutine caller_func_mismatch
+
+end module poly_qa
+```
+
+### Diagnostics
+
+On a fresh open, confirm exactly the following signs in the
+`:lopen` / `:Trouble` list. Anything else (extra fire, missing fire,
+wrong line, wrong code) is a regression.
+
+- [ ] **Case A — no signs anywhere** on lines 5–12.
+- [ ] **Case B — H023 error** on the assignment expression line
+      `mean = half * (x + y) + bias_kg` (line 23). Message names
+      the offending term (`bias_kg : kg`) and explains the body
+      would force `'a = kg`.
+- [ ] **Case C — H020 error** on the call site `call avg_two(m_in,
+      l_in, out_mean)` (line 31). Message includes the **symmetric
+      `(collides with arg N (name))` trailer** — both arg 1 and arg
+      2 are named (no "first arg wins" asymmetry). The unit each
+      slot implied (`kg` and `m`) is rendered.
+- [ ] **Case D — no signs** on lines 36–41.
+- [ ] **Case E — no signs anywhere** in the `avg_two_f` function
+      body. Mirrors Case A's clean polymorphism, this time on a
+      `function`.
+- [ ] **Case F — no signs** in `caller_func_clean`. The
+      `r = avg_two_f(a_in, b_in)` assignment is clean — function
+      return `'a` binds to `m`, RHS unit = LHS unit (`m`). Mirrors
+      Case D for the function path.
+- [ ] **Case G — H020 error** on the call_expression inside the
+      assignment `r = avg_two_f(m_in, l_in)`. Same shape as Case C
+      (symmetric `collides with` trailer, two-way conflict between
+      arg 1 = kg and arg 2 = m), just on a `call_expression` node
+      instead of `subroutine_call`. There should be NO additional
+      H001 / H004 / S001 on the assignment row — H020 alone owns
+      the failure.
+- [ ] **Diagnostic list** (`:lopen` or `:Trouble`) shows exactly
+      **three** entries (H023 + H020 + H020), nothing else.
+
+### Hover
+
+Hover with `K` (or `vim.lsp.buf.hover()`).
+
+- [ ] **Hover on a tyvar in a signature** — cursor on the `'a` in
+      `@unit{'a}` on line 7 (Case A's `x`). Hover shows the
+      polymorphic marker — exact rendering TBD per the spec; should
+      indicate `'a` is a free type variable, not a concrete unit.
+- [ ] **Hover on a clean call site (Case D)** — cursor on
+      `call avg_two(...)` on line 41. Hover renders the
+      **σ-binding panel**: `'a = m` (the unifier's solution at this
+      call). Every slot row is 🟢.
+- [ ] **Hover on the failed call site (Case C)** — cursor on
+      `call avg_two(...)` on line 31. Hover surfaces the conflicting
+      contributions per slot (`x → kg`, `y → m`, `mean → kg`); no
+      single `σ` panel because unification failed.
+- [ ] **Hover on `mean` in Case B body** — cursor on `mean` on
+      line 23. The expression tree shows `'a` for `mean`, `kg` for
+      `bias_kg`, the conflict row marked 🔴.
+- [ ] **Hover on Case F's call assignment** — cursor on
+      `r = avg_two_f(a_in, b_in)`. Tree root is the assignment;
+      RHS row is the call_expression. Arg rows render bare `m` 🟢
+      (no `(expected 'a)` trailer, no demote — same as Case D's
+      subroutine_call path). RHS row's unit is `m` (the bound
+      return), matching LHS `r : m` cleanly.
+- [ ] **Hover on Case G's call assignment** — cursor on
+      `r = avg_two_f(m_in, l_in)`. Arg rows render the spec form:
+      `m_in : 'a = kg 🔴 (collides with arg 2)` and
+      `l_in : 'a = m 🔴 (collides with arg 1)`. The call_expression
+      RHS row shows 🔴 from the H020 propagation. Assignment row
+      inherits 🔴. No spurious `(expected ...)` trailers on any arg
+      row.
+
+### Side panel
+
+Cursor in each routine's body in turn (open the panel with
+`:DimFortPanel` if not already visible). The Scope section should
+list the routine's locals + formals; the polymorphic ones render
+with `'a` in the unit column.
+
+- [ ] **Case A — `avg_two`** — Scope lists `x`, `y`, `mean` each
+      with unit `'a`, and `half` with unit `1`. All rows 🟢.
+- [ ] **Case B — `biased_avg`** — Scope lists `x`, `y`, `mean` with
+      `'a`, `bias_kg` with `kg`, `half` with `1`. The dishonest body
+      assignment shows a 🔴 on `mean` (or a flag/marker that the
+      body conflicts with the signature — exact UX TBD).
+- [ ] **Case C — `caller_mismatch`** — Scope lists `m_in : kg`,
+      `l_in : m`, `out_mean : kg`. Side panel surfaces the call-site
+      σ failure somewhere (a dedicated row, marker, or callout —
+      exact rendering to verify).
+- [ ] **Case D — `caller_clean`** — Scope lists three rows in `m`.
+      No σ markers; the call site is uneventful.
+- [ ] **Case E — `avg_two_f`** — Scope lists `x`, `y`, `out` each
+      with unit `'a`. All rows 🟢 (clean function body).
+- [ ] **Case F — `caller_func_clean`** — Scope lists `a_in : m`,
+      `b_in : m`, `r : m`. All 🟢. The Expression section (with
+      cursor in the assignment) shows the call_expression RHS
+      resolving to `m` cleanly.
+- [ ] **Case G — `caller_func_mismatch`** — Scope lists `m_in : kg`,
+      `l_in : m`, `r : kg`. The Expression section surfaces the
+      H020 conflict on the call_expression child of the assignment
+      (same UX as Case C's subroutine_call).
+
+### Interactive — H021 / H022 probes
+
+- [ ] **H021 (tyvar in forbidden position)** — add a module-level
+      declaration at the top of `poly_qa`:
+      `real :: bad_global !< @unit{'a}`. Save. Expect an **H021
+      error** on that line: type variables aren't allowed in module-
+      level scope (only in routine arg lists / locals). Undo with `u`.
+- [ ] **H022 probe (tyvar exponent must be rational)** — change
+      Case A's `mean` annotation to `!< @unit{'a^kappa}`. Save.
+      Expect an **H022 error** stating the tyvar's exponent must be
+      a literal rational (the symbolic `kappa` isn't supported in
+      the polymorphism path). Undo with `u`.
+
+### Known gaps in this annex
+
+- **Quick-fix coverage** — there's no Polymorphism-specific code
+  action today. The existing U002 / U023 / "Add @unit{}" actions
+  still apply normally on this file; re-run those steps from the
+  main Configurable-delimiters section if needed.
+- **Inlay hints** — `vim.lsp.inlay_hint` is off by default;
+  polymorphic vars under inlays render as `'a`. Toggle on and walk
+  Case D to confirm if you care about that surface today.
+- **Cross-file polymorphism** — this scene is single-file. Add a
+  separate `caller.f90` + `lib.f90` pair if cross-file lookup of a
+  polymorphic signature needs verifying.
