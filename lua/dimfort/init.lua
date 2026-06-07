@@ -24,6 +24,9 @@ local M = {}
 ---@field panel_position "right"|"left"|"bottom"
 ---@field panel_width_fraction number          -- fraction of editor width
 ---@field panel_debounce_ms integer            -- cursor-follow debounce
+---@field coverage_mode "disabled"|"gutter"|"background"
+                                               -- per-line coverage visualisation (requires DimFort 0.2.4+)
+---@field coverage_debounce_ms integer         -- debounce for the coverage refresh
 ---@field max_workset_size integer
 ---@field external_modules string[]
 ---@field filetypes string[]                   -- buffers DimFort attaches to
@@ -51,6 +54,11 @@ local defaults = {
   panel_width_fraction = 0.35,
   panel_width_cols = nil,         -- if set (integer), wins over fraction
   panel_debounce_ms = 200,
+  -- Coverage layer (requires DimFort 0.2.4+). ``disabled`` by default
+  -- (opt-in per the design spec); cycle through with
+  -- :DimFortCycleCoverage.
+  coverage_mode = "disabled",
+  coverage_debounce_ms = 200,
   max_workset_size = 40,
   external_modules = {},
   filetypes = { "fortran" },
@@ -348,6 +356,16 @@ M.cycle_scale = function()
   cycle("scale_mode", "scale checking", { "auto", "on", "off" })
 end
 
+-- Coverage visualisation is tri-state (disabled / gutter / background).
+-- Gutter and background are mutually-exclusive visual encodings of
+-- the same per-line tier; the user picks the visual weight they
+-- prefer. The coverage module owns the state and the refresh logic;
+-- this entry point just delegates. Coverage settings are companion-
+-- only, so the LSP is NOT restarted on a mode flip.
+M.cycle_coverage = function()
+  require("dimfort.coverage").cycle()
+end
+
 -- Print the current feature flags + client state. Bound to
 -- :DimFortStatus, so users don't have to count toggles to figure out
 -- where they are.
@@ -501,6 +519,21 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortCycleScale",
     function() M.cycle_scale() end,
     { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to .dimfort.toml" })
+  vim.api.nvim_create_user_command("DimFortCycleCoverage",
+    function() M.cycle_coverage() end,
+    { desc = "DimFort: cycle coverage visualisation (disabled/gutter/background)" })
+
+  -- Coverage layer setup. The module installs its sign defs +
+  -- highlight groups, registers the DiagnosticChanged autocmd that
+  -- drives refresh, and applies the configured initial mode. Runs
+  -- regardless of `coverage_mode` so the cycle command is wired
+  -- even when the layer is `disabled` (the listener no-ops in that
+  -- case; cost is one autocmd dispatch per diagnostics event).
+  local coverage = require("dimfort.coverage")
+  coverage.setup({
+    mode = M.config.coverage_mode,
+    debounce_ms = M.config.coverage_debounce_ms,
+  })
 
   -- Side panel — opt-in persistent split with the unit-algebra tree
   -- and routine-vars table. Off by default; see

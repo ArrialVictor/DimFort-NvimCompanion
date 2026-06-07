@@ -132,6 +132,7 @@ from your own autocommand or keymap.
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
 | `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
+| `:DimFortCycleCoverage`                  | Cycle coverage visualisation (`disabled` → `gutter` → `background`); companion-only (no LSP restart). |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
@@ -187,6 +188,36 @@ Same surface as the VSCode companion:
 - Inlay hints, go-to-definition, completion, code actions (toggleable).
 - The cursor-following **side panel** above.
 - Workspace-wide cross-file checks driven from `use` clauses.
+- **Coverage visualisation** (requires DimFort 0.2.4+) — per-line
+  status in one of two mutually-exclusive visual encodings:
+  - **Gutter** — coloured dot in the sign column. By default DimFort
+    paints **green** (verified) and **blue** (unparsed) dots only;
+    yellow and red lines are flagged by `vim.diagnostic`'s native
+    `W` / `E` gutter signs, which carry the same signal without
+    competing for the sign-column slot. Override via
+    `require("dimfort.coverage").config.gutter_tiers = { "green",
+    "yellow", "red", "blue" }` if you run with
+    `vim.diagnostic.config({ signs = false })`.
+  - **Background** — line tint behind the text in all four tiers
+    (green / yellow / red / blue). The tint sits in a different
+    visual region from the gutter, so it doesn't compete with the
+    diagnostic signs.
+
+  Off by default; toggle with `:DimFortCycleCoverage`. Customise the
+  colours via the highlight groups `DimFortCoverGreen` /
+  `DimFortCoverYellow` / `DimFortCoverRed` / `DimFortCoverBlue` (for
+  the gutter dots) and `DimFortCoverBg*` (for the line tint). The
+  background-tint hexes are **theme-aware**: the layer picks dark
+  shades when `vim.o.background == "dark"` and pre-lightened
+  shades when `light`, refreshing automatically on every
+  `ColorScheme` change or `:set background=light/dark` flip.
+
+  **Terminal note**: the coverage layer uses truecolor hex colours
+  with 256-colour `cterm` fallbacks. On MacOS Terminal (which doesn't
+  reliably advertise 24-bit truecolor) the fallbacks may produce
+  approximate or washed-out colours; switch to a truecolor-capable
+  terminal (Ghostty, iTerm2, kitty, wezterm, Alacritty) for full
+  fidelity.
 
 ## Notes
 
