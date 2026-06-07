@@ -22,9 +22,15 @@ local M = {}
 ---@class DimFortCoverageConfig
 ---@field mode DimFortCoverageMode
 ---@field debounce_ms integer
+---@field gutter_tiers DimFortCoverageTier[]    -- which tiers paint a gutter dot
 M.config = {
   mode = "disabled",
   debounce_ms = 200,
+  -- Default to green + blue only — see DEFAULT_GUTTER_TIERS below
+  -- for the rationale. Users who turned ``vim.diagnostic`` signs
+  -- off can override to { "green", "yellow", "red", "blue" } to
+  -- get a coverage dot on every tier.
+  gutter_tiers = nil,  -- populated from DEFAULT_GUTTER_TIERS in setup()
 }
 
 -- Namespace for the extmark-based background tint. The sign-column
@@ -50,26 +56,43 @@ local function tier_bg_hl(tier)     return "DimFortCoverBg" .. tier:sub(1,1):upp
 
 -- Default tier colours for the gutter dot. Picked to match the
 -- VSCompanion's SVGs so the layer reads identically across editors.
+-- ``cterm_fg`` is the 256-colour approximation for terminals without
+-- 24-bit truecolor (MacOS Terminal, older builds). Without it the
+-- fallback is white-on-default and the layer reads wrong.
 local FG_COLOURS = {
-  green  = "#28a745",
-  yellow = "#ffc107",
-  red    = "#dc3545",
-  blue   = "#0d6efd",
+  green  = { gui = "#28a745", cterm = 35  },  -- approx. medium green
+  yellow = { gui = "#ffc107", cterm = 220 },  -- approx. amber
+  red    = { gui = "#dc3545", cterm = 167 },  -- approx. crimson
+  blue   = { gui = "#0d6efd", cterm = 33  },  -- approx. azure
 }
 
 -- Default tier background tints for ``background`` mode. Pre-darkened
--- hexes rather than the full-saturation FG_COLOURS because Neovim's
+-- hexes rather than the full-saturation gutter colours because Neovim's
 -- ``line_hl_group`` does NOT respect the ``blend`` attribute (blend
 -- only applies to floating windows and a few conceal contexts), so a
 -- saturated bg would dominate the line. These shades read as a
 -- subtle tint on dark backgrounds; users on light themes can
 -- override via ``:hi DimFortCoverBg<Tier> guibg=...``.
 local BG_COLOURS = {
-  green  = "#0a3320",
-  yellow = "#3b2e00",
-  red    = "#3b0a13",
-  blue   = "#0a1c3b",
+  green  = { gui = "#0a3320", cterm = 22 },   -- dark green
+  yellow = { gui = "#3b2e00", cterm = 58 },   -- dark olive
+  red    = { gui = "#3b0a13", cterm = 52 },   -- dark wine
+  blue   = { gui = "#0a1c3b", cterm = 17 },   -- dark navy
 }
+
+-- Tiers whose gutter signs we actually place. The design spec §6
+-- defaults to "paint every tier" but carries a per-editor exception
+-- when the host editor already paints diagnostic icons in the
+-- gutter. Neovim does: ``vim.diagnostic`` places ``E`` / ``W`` /
+-- ``I`` / ``H`` signs by default for ERROR / WARNING / INFO / HINT
+-- severities, and those would compete with our coverage dot at the
+-- same line. We therefore step aside on yellow (W) and red (E) —
+-- the standard diagnostic sign already carries the signal — and
+-- paint only the positive (green) and informational (blue) tiers
+-- the diagnostic surface cannot express. Users who run with
+-- ``vim.diagnostic.config({ signs = false })`` can override this
+-- list via ``require('dimfort.coverage').config.gutter_tiers``.
+local DEFAULT_GUTTER_TIERS = { "green", "blue" }
 
 -- Install the four sign defs + the eight highlight groups. Idempotent
 -- — safe to call multiple times. Re-run from a ColorScheme autocmd so
@@ -80,17 +103,24 @@ local function install_definitions()
     -- Foreground highlight for the sign-column dot. NO ``default =
     -- true`` here: that flag makes the definition vulnerable to
     -- ``:hi clear`` wiping it, after which the sign renders with
-    -- terminal-default colour (white-on-default). Users who want
-    -- to override can ``:hi DimFortCoverGreen guifg=...`` after
-    -- setup — that takes precedence over a plain ``nvim_set_hl``.
+    -- terminal-default colour (white-on-default). ``ctermfg`` is the
+    -- 256-colour fallback for terminals without 24-bit truecolor
+    -- (MacOS Terminal, older builds) — without it the gui hex is
+    -- ignored and the sign ends up white. Users who want to
+    -- override can ``:hi DimFortCoverGreen guifg=...`` after setup
+    -- — that takes precedence over a plain ``nvim_set_hl``.
     vim.api.nvim_set_hl(0, tier_sign_hl(tier), {
-      fg = FG_COLOURS[tier],
+      fg = FG_COLOURS[tier].gui,
+      ctermfg = FG_COLOURS[tier].cterm,
     })
     -- Line-background tint. Uses a pre-darkened hex (see
     -- BG_COLOURS) because ``line_hl_group`` does NOT respect the
     -- ``blend`` attribute, so a saturated bg dominates the line.
+    -- ``ctermbg`` provides the 256-colour fallback for non-
+    -- truecolor terminals.
     vim.api.nvim_set_hl(0, tier_bg_hl(tier), {
-      bg = BG_COLOURS[tier],
+      bg = BG_COLOURS[tier].gui,
+      ctermbg = BG_COLOURS[tier].cterm,
     })
     -- Sign definition. ``●`` is a U+25CF Black Circle, matching
     -- the VSCompanion's SVG dot for visual parity. ``sign_define``
@@ -127,14 +157,29 @@ local function apply_decorations(bufnr, lines)
   clear_buffer(bufnr)
   if M.config.mode == "disabled" then return end
   local line_count = vim.api.nvim_buf_line_count(bufnr)
+  -- Build a set lookup for gutter_tiers so the inner loop is O(1)
+  -- per line instead of O(|gutter_tiers|).
+  local gutter_tier_set = {}
+  for _, t in ipairs(M.config.gutter_tiers or DEFAULT_GUTTER_TIERS) do
+    gutter_tier_set[t] = true
+  end
   for _, entry in ipairs(lines or {}) do
     local lnum = entry.line  -- 1-based per wire format
     local status = entry.status
     if lnum and lnum >= 1 and lnum <= line_count and status then
       if M.config.mode == "gutter" then
-        vim.fn.sign_place(0, SIGN_GROUP, tier_sign_name(status), bufnr,
-                          { lnum = lnum })
+        -- Only paint the tiers we own in the gutter — yellow / red
+        -- are handled by ``vim.diagnostic``'s W / E signs by default
+        -- (see DEFAULT_GUTTER_TIERS for the rationale).
+        if gutter_tier_set[status] then
+          vim.fn.sign_place(0, SIGN_GROUP, tier_sign_name(status), bufnr,
+                            { lnum = lnum })
+        end
       elseif M.config.mode == "background" then
+        -- Background tint paints every tier — line_hl_group is in a
+        -- different visual region (behind the text) from the gutter,
+        -- so it doesn't compete with ``vim.diagnostic``'s gutter
+        -- signs and the full tier surface is useful.
         vim.api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, 0, {
           line_hl_group = tier_bg_hl(status),
         })

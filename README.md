@@ -190,14 +190,30 @@ Same surface as the VSCode companion:
 - Workspace-wide cross-file checks driven from `use` clauses.
 - **Coverage visualisation** (requires DimFort 0.2.4+) — per-line
   status in one of two mutually-exclusive visual encodings:
-  - **Gutter** — coloured dot in the sign column per line, in four
-    tiers (green / yellow / red / blue) matching the panel markers.
-  - **Background** — low-alpha line tint behind the text in the same
-    four tiers.
+  - **Gutter** — coloured dot in the sign column. By default DimFort
+    paints **green** (verified) and **blue** (unparsed) dots only;
+    yellow and red lines are flagged by `vim.diagnostic`'s native
+    `W` / `E` gutter signs, which carry the same signal without
+    competing for the sign-column slot. Override via
+    `require("dimfort.coverage").config.gutter_tiers = { "green",
+    "yellow", "red", "blue" }` if you run with
+    `vim.diagnostic.config({ signs = false })`.
+  - **Background** — line tint behind the text in all four tiers
+    (green / yellow / red / blue). The tint sits in a different
+    visual region from the gutter, so it doesn't compete with the
+    diagnostic signs.
+
   Off by default; toggle with `:DimFortCycleCoverage`. Customise the
   colours via the highlight groups `DimFortCoverGreen` /
   `DimFortCoverYellow` / `DimFortCoverRed` / `DimFortCoverBlue` (for
   the gutter dots) and `DimFortCoverBg*` (for the line tint).
+
+  **Terminal note**: the coverage layer uses truecolor hex colours
+  with 256-colour `cterm` fallbacks. On MacOS Terminal (which doesn't
+  reliably advertise 24-bit truecolor) the fallbacks may produce
+  approximate or washed-out colours; switch to a truecolor-capable
+  terminal (Ghostty, iTerm2, kitty, wezterm, Alacritty) for full
+  fidelity.
 
 ## Notes
 

@@ -895,15 +895,19 @@ With `qa.f90` open:
         expression lines (`d = c_sound * t`,
         `q = 0.5 * rho * v * v`, the `combo`, `ln_p`, `rt_e2`
         calculations).
-      - **Yellow dots** on `t_celsius`'s declaration (U005 — no
-        annotation) and the `t_celsius = t - 273.15` line (H010
-        D1.5 — bare literal cast). With U005 propagation (server
-        PR #55), every other line referencing `t_celsius` also
-        paints yellow.
-      - **Red dot** on the `bogus = c_sound * t` line (H001).
+      - On yellow / red lines (U005, H010, H001 sites) the
+        **standard `vim.diagnostic` `W` / `E` sign** shows in the
+        sign column — the coverage layer steps aside there to
+        avoid competing for the slot. With U005 propagation
+        (server PR #55), every line referencing the unannotated
+        `t_celsius` paints with the `W` sign too.
       - Out-of-scope lines (`module`, `contains`, `end function`,
         `end subroutine`, `end module`, blank lines, comment-only
         lines) carry no sign in the sign column.
+      - To force the coverage layer to paint yellow / red dots too
+        (e.g. if you've turned `vim.diagnostic` signs off), set
+        `require("dimfort.coverage").config.gutter_tiers = {
+        "green", "yellow", "red", "blue" }` after `setup()`.
 - [ ] Run `:DimFortCycleCoverage` again → notification reads
       `DimFort: coverage background`. Confirm:
       - The gutter dots are gone.
