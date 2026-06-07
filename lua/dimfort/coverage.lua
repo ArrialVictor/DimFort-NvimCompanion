@@ -190,10 +190,8 @@ end
 
 -- Return the active DimFort LSP client attached to ``bufnr``, or nil.
 local function dimfort_client(bufnr)
-  for _, c in ipairs(vim.lsp.get_clients({ bufnr = bufnr, name = "dimfort" })) do
-    return c
-  end
-  return nil
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "dimfort" })
+  return clients[1]
 end
 
 -- Query the server for the buffer's per-line status and paint. Called
