@@ -66,19 +66,34 @@ local FG_COLOURS = {
   blue   = { gui = "#0d6efd", cterm = 33  },  -- approx. azure
 }
 
--- Default tier background tints for ``background`` mode. Pre-darkened
--- hexes rather than the full-saturation gutter colours because Neovim's
+-- Default tier background tints for ``background`` mode, picked from
+-- ``BG_COLOURS_DARK`` or ``BG_COLOURS_LIGHT`` based on ``vim.o.background``.
 -- ``line_hl_group`` does NOT respect the ``blend`` attribute (blend
--- only applies to floating windows and a few conceal contexts), so a
--- saturated bg would dominate the line. These shades read as a
--- subtle tint on dark backgrounds; users on light themes can
--- override via ``:hi DimFortCoverBg<Tier> guibg=...``.
-local BG_COLOURS = {
+-- only applies to floating windows and a few conceal contexts), so
+-- the bg colour must already be tint-appropriate for the theme's
+-- background — saturated hexes dominate the line. The dark hexes are
+-- pre-darkened to read as a subtle wash on a dark background; the
+-- light hexes are pre-lightened for a subtle wash on white. Users
+-- can override either via ``:hi DimFortCoverBg<Tier> guibg=...``.
+local BG_COLOURS_DARK = {
   green  = { gui = "#0a3320", cterm = 22 },   -- dark green
   yellow = { gui = "#3b2e00", cterm = 58 },   -- dark olive
   red    = { gui = "#3b0a13", cterm = 52 },   -- dark wine
   blue   = { gui = "#0a1c3b", cterm = 17 },   -- dark navy
 }
+local BG_COLOURS_LIGHT = {
+  green  = { gui = "#d4f4dd", cterm = 194 },  -- pale green
+  yellow = { gui = "#fff3cd", cterm = 230 },  -- pale yellow
+  red    = { gui = "#f8d7da", cterm = 224 },  -- pale red
+  blue   = { gui = "#cfe2ff", cterm = 189 },  -- pale blue
+}
+
+-- Pick the bg-colour table appropriate for the active ``background``
+-- option. ``vim.o.background`` is set by ``set background=light/dark``
+-- and is generally aligned with the active colorscheme.
+local function bg_colours()
+  return (vim.o.background == "light") and BG_COLOURS_LIGHT or BG_COLOURS_DARK
+end
 
 -- Tiers whose gutter signs we actually place. The design spec §6
 -- defaults to "paint every tier" but carries a per-editor exception
@@ -113,14 +128,15 @@ local function install_definitions()
       fg = FG_COLOURS[tier].gui,
       ctermfg = FG_COLOURS[tier].cterm,
     })
-    -- Line-background tint. Uses a pre-darkened hex (see
-    -- BG_COLOURS) because ``line_hl_group`` does NOT respect the
-    -- ``blend`` attribute, so a saturated bg dominates the line.
-    -- ``ctermbg`` provides the 256-colour fallback for non-
-    -- truecolor terminals.
+    -- Line-background tint. Picks the dark or light hex per the
+    -- active ``vim.o.background`` (see ``bg_colours()``) because
+    -- ``line_hl_group`` does NOT respect the ``blend`` attribute,
+    -- so the bg colour must already be tint-appropriate. ``ctermbg``
+    -- provides the 256-colour fallback for non-truecolor terminals.
+    local bg = bg_colours()[tier]
     vim.api.nvim_set_hl(0, tier_bg_hl(tier), {
-      bg = BG_COLOURS[tier].gui,
-      ctermbg = BG_COLOURS[tier].cterm,
+      bg = bg.gui,
+      ctermbg = bg.cterm,
     })
     -- Sign definition. ``●`` is a U+25CF Black Circle, matching
     -- the VSCompanion's SVG dot for visual parity. ``sign_define``
@@ -291,9 +307,17 @@ function M.setup(opts)
   -- background tints keep their colour. Also re-paints every
   -- visible buffer so the new highlights show without waiting for
   -- the next edit.
-  vim.api.nvim_create_autocmd("ColorScheme", {
+  -- Re-install on colorscheme change (:hi clear wipes our groups) AND
+  -- on ``set background=light/dark`` switches so the background-tint
+  -- hexes are picked from the matching ``bg_colours()`` table.
+  vim.api.nvim_create_autocmd({ "ColorScheme", "OptionSet" }, {
     group = group,
-    callback = function()
+    callback = function(ev)
+      -- OptionSet fires for every option; gate on the one we care
+      -- about (the colorscheme path doesn't carry a match).
+      if ev.event == "OptionSet" and ev.match ~= "background" then
+        return
+      end
       install_definitions()
       if M.config.mode ~= "disabled" then
         M.refresh_all()

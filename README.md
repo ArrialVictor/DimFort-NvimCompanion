@@ -206,7 +206,11 @@ Same surface as the VSCode companion:
   Off by default; toggle with `:DimFortCycleCoverage`. Customise the
   colours via the highlight groups `DimFortCoverGreen` /
   `DimFortCoverYellow` / `DimFortCoverRed` / `DimFortCoverBlue` (for
-  the gutter dots) and `DimFortCoverBg*` (for the line tint).
+  the gutter dots) and `DimFortCoverBg*` (for the line tint). The
+  background-tint hexes are **theme-aware**: the layer picks dark
+  shades when `vim.o.background == "dark"` and pre-lightened
+  shades when `light`, refreshing automatically on every
+  `ColorScheme` change or `:set background=light/dark` flip.
 
   **Terminal note**: the coverage layer uses truecolor hex colours
   with 256-colour `cterm` fallbacks. On MacOS Terminal (which doesn't
