@@ -160,7 +160,7 @@ function M.refresh_workspace(on_done)
     -- sent the request — so the user-feedback responsibility lives
     -- here on the client.
     vim.notify("DimFort: workspace check already in progress",
-               vim.log.levels.WARN)
+               vim.log.levels.INFO)
     if on_done then on_done(true) end
     return
   end
