@@ -120,9 +120,33 @@ local function start_spinner()
   end))
 end
 
+-- Handler for ``dimfort/workspaceCheckCompleted`` notifications.
+-- Since DimFort 0.2.5 the workspace check runs on a server-side
+-- daemon thread; the executeCommand returns an ack immediately, and
+-- the fresh coverage payload arrives later via this notification.
+-- The handler clears the in-flight spinner and updates state.
+local function handle_workspace_check_completed(_, resp, _ctx)
+  if not state.ws_refreshing then return end
+  state.ws_refreshing = false
+  stop_spinner()
+  if present(resp) and not resp.failed and present(resp.total) then
+    state.workspace = from_row(resp.total)
+    state.ws_stale = false
+  end
+  fire()
+end
+
+-- Register the notification handler. Called once at setup; safe to
+-- call multiple times (assigns into the same global table).
+function M.install_handlers()
+  vim.lsp.handlers["dimfort/workspaceCheckCompleted"] =
+    handle_workspace_check_completed
+end
+
 -- Run a workspace refresh via workspace/executeCommand dimfort.checkWorkspace.
--- The server returns the fresh aggregate inline; we cache it and clear
--- the stale flag. Called by :DimFortCheckWorkspace.
+-- Async since 0.2.5: the server returns {started: bool} immediately and
+-- fires dimfort/workspaceCheckCompleted when the actual check finishes.
+-- Spinner runs continuously until the completion notification arrives.
 function M.refresh_workspace(on_done)
   local client = active_dimfort_client()
   if not client then
@@ -130,12 +154,16 @@ function M.refresh_workspace(on_done)
     return
   end
   if state.ws_refreshing then
-    -- Already in flight — coalesce.
+    -- Local coalesce: don't send a duplicate executeCommand, but do
+    -- tell the user. The server-side coalesce toast (kicked off
+    -- from cross-client triggers) never reaches us because we never
+    -- sent the request — so the user-feedback responsibility lives
+    -- here on the client.
+    vim.notify("DimFort: workspace check already in progress",
+               vim.log.levels.INFO)
     if on_done then on_done(true) end
     return
   end
-  local seq = state.ws_req_seq + 1
-  state.ws_req_seq = seq
   state.ws_refreshing = true
   state.spinner_frame = 1
   start_spinner()
@@ -143,16 +171,23 @@ function M.refresh_workspace(on_done)
   client:request("workspace/executeCommand", {
     command = "dimfort.checkWorkspace",
     arguments = {},
-  }, function(err, resp)
-    if seq ~= state.ws_req_seq then return end
-    state.ws_refreshing = false
-    stop_spinner()
-    if not err and present(resp) and present(resp.total) then
-      state.workspace = from_row(resp.total)
-      state.ws_stale = false
+  }, function(err, ack)
+    -- We're acknowledging the ack only. The real payload arrives
+    -- later via the dimfort/workspaceCheckCompleted notification.
+    if err then
+      state.ws_refreshing = false
+      stop_spinner()
+      fire()
+      if on_done then on_done(false) end
+      return
     end
-    fire()
-    if on_done then on_done(not err) end
+    if present(ack) and ack.started == false then
+      -- Server refused (already in flight, or no workspace index).
+      state.ws_refreshing = false
+      stop_spinner()
+      fire()
+    end
+    if on_done then on_done(true) end
   end)
 end
 

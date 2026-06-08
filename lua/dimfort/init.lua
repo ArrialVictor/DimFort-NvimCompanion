@@ -555,6 +555,10 @@ function M.setup(opts)
   -- snapshot stale so the footer's WS segment dims. See lua/dimfort/stats.lua.
   do
     local stats_mod = require("dimfort.stats")
+    -- Register the dimfort/workspaceCheckCompleted notification
+    -- handler used by the async workspace check (DimFort 0.2.5+).
+    -- See stats.lua.
+    stats_mod.install_handlers()
     local stats_group = vim.api.nvim_create_augroup("DimFortStats", { clear = true })
     vim.api.nvim_create_autocmd("DiagnosticChanged", {
       group = stats_group,
