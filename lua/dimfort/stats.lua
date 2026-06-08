@@ -154,7 +154,13 @@ function M.refresh_workspace(on_done)
     return
   end
   if state.ws_refreshing then
-    -- Already in flight — coalesce.
+    -- Local coalesce: don't send a duplicate executeCommand, but do
+    -- tell the user. The server-side coalesce toast (kicked off
+    -- from cross-client triggers) never reaches us because we never
+    -- sent the request — so the user-feedback responsibility lives
+    -- here on the client.
+    vim.notify("DimFort: workspace check already in progress",
+               vim.log.levels.WARN)
     if on_done then on_done(true) end
     return
   end
