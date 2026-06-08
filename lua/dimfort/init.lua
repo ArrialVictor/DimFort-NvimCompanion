@@ -279,6 +279,9 @@ function M.restart(opts)
     end
     active_client_id = nil
   end
+  -- Drop coverage caches — the new client may be different version /
+  -- workspace and any cached numbers are stale.
+  require("dimfort.stats").reset()
   -- Defer the re-attach so vim.lsp.stop's cleanup finishes first.
   vim.defer_fn(function()
     M.attach()
@@ -287,20 +290,22 @@ function M.restart(opts)
   end, 100)
 end
 
--- Run the workspace check via workspace/executeCommand.
+-- Run the workspace check via workspace/executeCommand. Since 0.2.5,
+-- the server-side command publishes squiggles, refreshes the workspace
+-- coverage cache, AND returns the fresh aggregate inline — so this one
+-- call drives the workspace bar's spinner + final value. The stats
+-- module handles request bookkeeping (sequence numbers, spinner,
+-- listener fan-out); we just trigger it.
 function M.check_workspace()
   local client = active_client_id and vim.lsp.get_client_by_id(active_client_id)
   if not client then
     vim.notify("DimFort: no active language client", vim.log.levels.WARN)
     return
   end
-  client:request("workspace/executeCommand", {
-    command = "dimfort.checkWorkspace",
-    arguments = {},
-  }, function(err)
-    if err then
-      vim.notify("DimFort: checkWorkspace failed — " .. tostring(err.message),
-                 vim.log.levels.ERROR)
+  local stats = require("dimfort.stats")
+  stats.refresh_workspace(function(ok)
+    if not ok then
+      vim.notify("DimFort: checkWorkspace failed", vim.log.levels.ERROR)
     end
   end)
 end
@@ -545,6 +550,25 @@ function M.setup(opts)
   panel.config.width_cols     = M.config.panel_width_cols
   panel.config.debounce_ms    = M.config.panel_debounce_ms
   panel.install_autocmds()
+  -- Coverage stats: refresh the active buffer's file-coverage on every
+  -- DiagnosticChanged event from DimFort, and mark any cached workspace
+  -- snapshot stale so the footer's WS segment dims. See lua/dimfort/stats.lua.
+  do
+    local stats_mod = require("dimfort.stats")
+    local stats_group = vim.api.nvim_create_augroup("DimFortStats", { clear = true })
+    vim.api.nvim_create_autocmd("DiagnosticChanged", {
+      group = stats_group,
+      callback = function(args)
+        local buf = args.buf or vim.api.nvim_get_current_buf()
+        if vim.bo[buf].filetype ~= "fortran" then return end
+        stats_mod.on_diagnostics_changed(buf)
+      end,
+    })
+  end
+  vim.api.nvim_create_user_command("DimFortRefreshWorkspace",
+    function() M.check_workspace() end,
+    { desc = "DimFort: refresh whole-workspace coverage (alias for "
+      .. ":DimFortCheckWorkspace)" })
   vim.api.nvim_create_user_command("DimFortTogglePanel",
     function() panel.toggle() end,
     { desc = "DimFort: open/close the side panel" })

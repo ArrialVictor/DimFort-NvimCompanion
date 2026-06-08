@@ -20,6 +20,8 @@
 -- requests and ``textDocument/codeAction`` — see
 -- DimFort/docs/design/panel-info.md and interaction-points.md.
 
+local stats = require("dimfort.stats")
+
 local M = {}
 
 ---@class DimFortPanelConfig
@@ -632,12 +634,65 @@ local function render_all()
     end)
   end
 
-  -- Footer: whole-file diagnostic counts.
-  if layout == "both" and present(payload) and present(payload.fileDiagnosticCounts) then
-    local counts = payload.fileDiagnosticCounts
+  -- Footer: coverage bar — per-file + workspace coverage %, with raw
+  -- 🟡 / 🔴 tier counts in parentheses. Always rendered (regardless of
+  -- whether we have a payload), so the user always sees the WS state.
+  -- See VSCompanion ``renderFooter`` for the canonical layout.
+  --
+  --   no active fortran file              → "File: –"   (dimmed)
+  --   active file, stats cached           → "File: <pct>% (🟡 N 🔴 M)"
+  --
+  --   no workspace refresh yet            → "WS: –"     (dimmed)
+  --   refresh in flight                   → "WS: <spinner>" (dimmed)
+  --   have data, fresh                    → "WS: <pct>% (🟡 N 🔴 M)"
+  --   have data, stale (files edited)     → same, dimmed
+  if layout == "both" or layout == "routine" then
+    local uri = nil
+    if state.source_bufnr and vim.api.nvim_buf_is_valid(state.source_bufnr)
+        and vim.bo[state.source_bufnr].filetype == "fortran" then
+      local ok, u = pcall(vim.uri_from_bufnr, state.source_bufnr)
+      if ok then uri = u end
+    end
+    local snap = stats.snapshot(uri)
     emit(cv, DIVIDER)
-    emit(cv, string.format("File: 🔴 %d   🟡 %d",
-                           val(counts.error, 0), val(counts.warning, 0)))
+    local file_text, file_dim
+    if snap.file then
+      file_text = string.format("File: %g%% (🟡 %d 🔴 %d)",
+        snap.file.coverage_pct, snap.file.warn, snap.file.fire)
+      file_dim = false
+    else
+      file_text = "File: –"
+      file_dim = true
+    end
+    local ws_text, ws_dim
+    if snap.ws_refreshing then
+      ws_text = "WS: " .. (snap.spinner or "⠋")
+      ws_dim = true
+    elseif not snap.workspace then
+      ws_text = "WS: –"
+      ws_dim = true
+    else
+      ws_text = string.format("WS: %g%% (🟡 %d 🔴 %d)",
+        snap.workspace.coverage_pct, snap.workspace.warn, snap.workspace.fire)
+      ws_dim = snap.ws_stale
+    end
+    emit(cv, file_text .. "   " .. ws_text,
+         nil, (file_dim and ws_dim) and "Comment" or nil)
+    -- If only one half is dimmed, dim only that half via a per-row
+    -- range highlight rather than tinting the whole row.
+    if (file_dim and not ws_dim) or (ws_dim and not file_dim) then
+      cv.range_hls = cv.range_hls or {}
+      local row_idx = #cv.rows
+      local ranges = {}
+      if file_dim then
+        table.insert(ranges, { col = 0, end_col = #file_text, hl = "Comment" })
+      end
+      if ws_dim then
+        local ws_col = #file_text + #"   "
+        table.insert(ranges, { col = ws_col, end_col = ws_col + #ws_text, hl = "Comment" })
+      end
+      cv.range_hls[row_idx] = ranges
+    end
   end
 
   return cv
@@ -1035,6 +1090,26 @@ function M.install_autocmds()
       schedule_refresh()
     end,
   })
+  -- BufEnter on a Fortran buffer kicks off a file-coverage fetch so
+  -- the footer reflects the new active file; the panel itself
+  -- re-renders via the stats on_change subscription below.
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    callback = function(args)
+      local buf = args.buf or vim.api.nvim_get_current_buf()
+      if vim.bo[buf].filetype ~= "fortran" then return end
+      local ok, uri = pcall(vim.uri_from_bufnr, buf)
+      if ok and uri then stats.refresh_file(uri) end
+    end,
+  })
+  -- Stats updates (file refresh / workspace refresh / spinner frame)
+  -- only affect the footer; repaint the panel if it's open. The
+  -- callback registers once at setup time and lives for the session.
+  stats.on_change(function()
+    if state.win and vim.api.nvim_win_is_valid(state.win) then
+      paint(render_all(), false)
+    end
+  end)
 end
 
 return M

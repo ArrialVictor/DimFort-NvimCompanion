@@ -11,6 +11,22 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ### Added
 
+- **Workspace coverage bar** — side-panel footer now renders a unified
+  coverage bar showing per-file and whole-workspace stats:
+  `File: 78% (🟡 18 🔴 2)   WS: 12.9% (🟡 N 🔴 M)`. File-scope numbers
+  refresh live on every `DiagnosticChanged` event; workspace-scope is
+  populated only by `:DimFortCheckWorkspace` (a new
+  `:DimFortRefreshWorkspace` alias is provided for parity with
+  VSCompanion's command name). Three WS states: `WS: –` (dimmed) before
+  the first refresh, a Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`, 80 ms cadence)
+  while a refresh is in flight, and `WS: <pct>%` after. Numbers dim
+  once any file's diagnostics change after the last successful refresh
+  so the user knows the snapshot may be stale. Requires DimFort 0.2.5+
+  (relies on the unified `dimfort.checkWorkspace` server command). New
+  module `lua/dimfort/stats.lua` carries the provider; mirrors the
+  VSCompanion `CoverageStatsProvider`. Replaces the previous footer
+  that surfaced only raw 🔴 / 🟡 diagnostic counts for the active file.
+
 - **Coverage visualisation** — per-line status decoration driven by
   the server's `dimfort/lineStatus` LSP method (requires DimFort
   0.2.4+). Setting `coverage_mode` (`disabled` | `gutter` |
