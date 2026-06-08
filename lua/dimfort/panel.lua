@@ -1003,8 +1003,18 @@ local function schedule_refresh()
   local timer = vim.uv.new_timer()
   state.pending_timer = timer
   timer:start(M.config.debounce_ms, 0, vim.schedule_wrap(function()
-    state.pending_timer = nil
-    timer:close()
+    -- Race: a second schedule_refresh that arrived between this
+    -- timer's expiry and the schedule_wrap-deferred callback will
+    -- have already stop()+close()'d the handle. ``vim.schedule_wrap``
+    -- can't be revoked, so the callback still runs — guard with
+    -- ``is_closing()`` so we don't double-close. Same applies to
+    -- pending_timer: only clear it if it's still pointing at us.
+    if state.pending_timer == timer then
+      state.pending_timer = nil
+    end
+    if not timer:is_closing() then
+      timer:close()
+    end
     M.refresh()
   end))
 end
