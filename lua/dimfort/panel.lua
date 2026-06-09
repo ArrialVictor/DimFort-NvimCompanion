@@ -642,9 +642,9 @@ local function render_all()
   --   no active fortran file              → "File: –"   (dimmed)
   --   active file, stats cached           → "File: <pct>% (🟡 N 🔴 M)"
   --
-  --   no workspace refresh yet            → "WS: –"     (dimmed)
-  --   refresh in flight                   → "WS: <spinner>" (dimmed)
-  --   have data, fresh                    → "WS: <pct>% (🟡 N 🔴 M)"
+  --   no workspace refresh yet            → "Project: –"     (dimmed)
+  --   refresh in flight                   → "Project: <spinner>" (dimmed)
+  --   have data, fresh                    → "Project: <pct>% (🟡 N 🔴 M)"
   --   have data, stale (files edited)     → same, dimmed
   if layout == "both" or layout == "routine" then
     local uri = nil
@@ -666,13 +666,13 @@ local function render_all()
     end
     local ws_text, ws_dim
     if snap.ws_refreshing then
-      ws_text = "WS: " .. (snap.spinner or "⠋")
+      ws_text = "Project: " .. (snap.spinner or "⠋")
       ws_dim = true
     elseif not snap.workspace then
-      ws_text = "WS: –"
+      ws_text = "Project: –"
       ws_dim = true
     else
-      ws_text = string.format("WS: %g%% (🟡 %d 🔴 %d)",
+      ws_text = string.format("Project: %g%% (🟡 %d 🔴 %d)",
         snap.workspace.coverage_pct, snap.workspace.warn, snap.workspace.fire)
       ws_dim = snap.ws_stale
     end

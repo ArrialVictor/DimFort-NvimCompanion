@@ -125,7 +125,7 @@ from your own autocommand or keymap.
 
 | Command                                  | Effect                                                              |
 |------------------------------------------|---------------------------------------------------------------------|
-| `:DimFortCheckWorkspace`                 | Run the workspace-wide unit check; also refreshes the panel footer's `WS:` segment. |
+| `:DimFortCheckWorkspace`                 | Run the workspace-wide unit check; also refreshes the panel footer's `Project:` segment. |
 | `:DimFortRefreshWorkspace`               | Alias of `:DimFortCheckWorkspace` for parity with the VSCode companion's command name. |
 | `:DimFortRestart`                        | Restart the language server.                                        |
 | `:DimFortStatus`                         | Print current feature toggles and client id.                        |
@@ -174,11 +174,11 @@ interaction sites and imports).
 **Coverage bar**: a footer below the sections shows the active file's
 coverage percentage and tier counts on the left, and the
 whole-workspace aggregate on the right —
-`File: 78% (🟡 18 🔴 2)   WS: 12.9% (🟡 N 🔴 M)`. File-scope updates
+`File: 78% (🟡 18 🔴 2)   Project: 12.9% (🟡 N 🔴 M)`. File-scope updates
 live; workspace-scope is populated when you run
-`:DimFortCheckWorkspace`. Pre-refresh the bar shows `WS: –`; during a
+`:DimFortCheckWorkspace`. Pre-refresh the bar shows `Project: –`; during a
 refresh it shows a Braille spinner; once any file's diagnostics change
-the WS numbers dim to signal they may no longer reflect current state.
+the Project numbers dim to signal they may no longer reflect current state.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ArrialVictor/DimFort/main/docs/img/panel-nvim-hero_dark.png">

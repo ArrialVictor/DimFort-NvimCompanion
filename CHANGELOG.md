@@ -31,13 +31,13 @@ after a refresh trigger.
 
 - **Workspace coverage bar** — side-panel footer now renders a unified
   coverage bar showing per-file and whole-workspace stats:
-  `File: 78% (🟡 18 🔴 2)   WS: 12.9% (🟡 N 🔴 M)`. File-scope numbers
+  `File: 78% (🟡 18 🔴 2)   Project: 12.9% (🟡 N 🔴 M)`. File-scope numbers
   refresh live on every `DiagnosticChanged` event; workspace-scope is
   populated only by `:DimFortCheckWorkspace` (a new
   `:DimFortRefreshWorkspace` alias is provided for parity with
-  VSCompanion's command name). Three WS states: `WS: –` (dimmed) before
+  VSCompanion's command name). Three WS states: `Project: –` (dimmed) before
   the first refresh, a Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`, 80 ms cadence)
-  while a refresh is in flight, and `WS: <pct>%` after. Numbers dim
+  while a refresh is in flight, and `Project: <pct>%` after. Numbers dim
   once any file's diagnostics change after the last successful refresh
   so the user knows the snapshot may be stale. Requires DimFort 0.2.5+
   (relies on the unified `dimfort.checkWorkspace` server command). New

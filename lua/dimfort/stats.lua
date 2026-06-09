@@ -10,7 +10,7 @@
 --      dimfort.checkWorkspace). The wire response carries the fresh
 --      aggregate so we don't have to round-trip a second request.
 --   3. wsStale flag — set once any diagnostics change after the last
---      successful workspace refresh, so the panel dims the WS segment
+--      successful workspace refresh, so the panel dims the Project segment
 --      to signal "may no longer reflect current state."
 --
 -- The panel subscribes via ``M.on_change(fn)`` and re-renders its footer.
@@ -207,7 +207,7 @@ end
 
 -- Reset all caches (LSP restart). Workspace snapshot is intentionally
 -- preserved across the active-editor change so the bar doesn't flash a
--- ``WS: –`` between every file switch; only the LSP restart drops it.
+-- ``Project: –`` between every file switch; only the LSP restart drops it.
 function M.reset()
   state.file = {}
   state.workspace = nil
