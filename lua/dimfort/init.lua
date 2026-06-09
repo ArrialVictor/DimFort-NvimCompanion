@@ -287,7 +287,49 @@ function M.restart(opts)
     M.attach()
     vim.notify(opts.message or "DimFort: language server restarted",
                vim.log.levels.INFO)
+    -- Force one panel refresh once the new LSP client is actually
+    -- attached. Polling rather than a fixed delay because the
+    -- attach timeline depends on cache state (initial scan
+    -- ~600 ms warm / ~4 s cold), and a fixed delay would either
+    -- fire too early (request hits no server, panel rebuilds
+    -- against empty payload) or feel sluggish on warm restarts.
+    -- Without this, a scale-toggle / hover-mode / cache-mode flip
+    -- would leave the panel showing the prior server's payload
+    -- until the user moved the cursor.
+    M._restart_wait_and_refresh(vim.uv.hrtime() + 10 * 1e9)
   end, 100)
+end
+
+-- Poll every 300 ms (up to a 10 s deadline) for an attached
+-- DimFort client, then fire one panel refresh once one is found.
+function M._restart_wait_and_refresh(deadline_ns)
+  local clients = vim.lsp.get_clients({ name = "dimfort" })
+  if #clients > 0 then
+    -- Panel: re-render against the new server's state.
+    local ok_panel, panel = pcall(require, "dimfort.panel")
+    if ok_panel and panel and panel.refresh then
+      pcall(panel.refresh)
+    end
+    -- Stats: refresh the active Fortran buffer's File: segment.
+    -- Without this, the footer keeps the prior server's per-file
+    -- numbers until the user switches buffer (which is what fires
+    -- the BufEnter autocmd that triggers stats.refresh_file).
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf].filetype == "fortran" then
+      local ok_stats, stats_mod = pcall(require, "dimfort.stats")
+      if ok_stats and stats_mod and stats_mod.refresh_file then
+        local ok_uri, uri = pcall(vim.uri_from_bufnr, buf)
+        if ok_uri and uri and uri ~= "" then
+          pcall(stats_mod.refresh_file, uri)
+        end
+      end
+    end
+    return
+  end
+  if vim.uv.hrtime() >= deadline_ns then return end
+  vim.defer_fn(function()
+    M._restart_wait_and_refresh(deadline_ns)
+  end, 300)
 end
 
 -- Run the workspace check via workspace/executeCommand. Since 0.2.5,
@@ -566,6 +608,18 @@ function M.setup(opts)
         local buf = args.buf or vim.api.nvim_get_current_buf()
         if vim.bo[buf].filetype ~= "fortran" then return end
         stats_mod.on_diagnostics_changed(buf)
+      end,
+    })
+    -- Stale-mark on user edits only (not on server publishDiagnostics
+    -- events, which DiagnosticChanged also fires for — including the
+    -- big post-workspace-check fan-out that would otherwise dim the
+    -- bar instantly after every refresh completed).
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+      group = stats_group,
+      callback = function(args)
+        local buf = args.buf or vim.api.nvim_get_current_buf()
+        if vim.bo[buf].filetype ~= "fortran" then return end
+        stats_mod.on_text_changed()
       end,
     })
   end
