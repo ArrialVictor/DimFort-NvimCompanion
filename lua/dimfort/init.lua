@@ -305,9 +305,24 @@ end
 function M._restart_wait_and_refresh(deadline_ns)
   local clients = vim.lsp.get_clients({ name = "dimfort" })
   if #clients > 0 then
-    local ok, panel = pcall(require, "dimfort.panel")
-    if ok and panel and panel.refresh then
+    -- Panel: re-render against the new server's state.
+    local ok_panel, panel = pcall(require, "dimfort.panel")
+    if ok_panel and panel and panel.refresh then
       pcall(panel.refresh)
+    end
+    -- Stats: refresh the active Fortran buffer's File: segment.
+    -- Without this, the footer keeps the prior server's per-file
+    -- numbers until the user switches buffer (which is what fires
+    -- the BufEnter autocmd that triggers stats.refresh_file).
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf].filetype == "fortran" then
+      local ok_stats, stats_mod = pcall(require, "dimfort.stats")
+      if ok_stats and stats_mod and stats_mod.refresh_file then
+        local ok_uri, uri = pcall(vim.uri_from_bufnr, buf)
+        if ok_uri and uri and uri ~= "" then
+          pcall(stats_mod.refresh_file, uri)
+        end
+      end
     end
     return
   end
