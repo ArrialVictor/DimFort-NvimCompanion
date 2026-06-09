@@ -7,7 +7,7 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
-## [Unreleased]
+## [0.2.5] — 2026-06-09
 
 ### Recommended server version
 
