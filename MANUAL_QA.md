@@ -390,18 +390,18 @@ applies, so they don't pop in and out as the cursor moves.
       into a named PARAMETER (s)**; `<CR>` prompts for a name and applies
       the refactor.
 - [ ] **Footer (coverage bar)** — the panel's last line reads
-      `File: <pct>% (🟡 N 🔴 M)   WS: …` with the active file's
+      `File: <pct>% (🟡 N 🔴 M)   Project: …` with the active file's
       coverage on the left and the whole-workspace aggregate on the
       right.
 - [ ] **WS pre-refresh state** — before the first manual workspace
-      check, the WS segment reads `WS: –` (dimmed).
+      check, the Project segment reads `Project: –` (dimmed).
 - [ ] **Workspace check** — run `:DimFortCheckWorkspace`. The WS
       segment becomes a Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) for the
       duration of the server-side check, then settles to
-      `WS: <pct>% (🟡 N 🔴 M)`. The status-bar log line "DimFort
+      `Project: <pct>% (🟡 N 🔴 M)`. The status-bar log line "DimFort
       workspace check complete: …" fires alongside.
 - [ ] **WS stale state** — after a successful check, edit any
-      Fortran file. The WS segment dims (the snapshot may no
+      Fortran file. The Project segment dims (the snapshot may no
       longer reflect current state). The File segment updates live.
 - [ ] **Duplicate trigger** — run `:DimFortCheckWorkspace` twice in
       quick succession while a check is in flight. The second
