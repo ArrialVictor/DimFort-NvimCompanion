@@ -18,7 +18,7 @@
 --
 -- Wire protocol: ``dimfort/panelInfo`` + ``dimfort/interactions`` LSP
 -- requests and ``textDocument/codeAction`` — see
--- DimFort/docs/design/panel-info.md and interaction-points.md.
+-- DimFort/docs/design/shipped/panel-info.md and shipped/interaction-points.md.
 
 local stats = require("dimfort.stats")
 
