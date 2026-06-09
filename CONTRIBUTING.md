@@ -50,7 +50,7 @@ The source of truth for behavioural QA is `MANUAL_QA.md`.
   treat the server's JSON response as authoritative.
 - Match the surface of the VSCode and Emacs companions where it makes sense
   — the three are intentionally feature-parallel. Cross-companion design notes
-  live in the DimFort server repo's `docs/design/panel-info.md`.
+  live in the DimFort server repo's `docs/design/shipped/panel-info.md`.
 - Panel rendering uses `vim.fn.strdisplaywidth` + manual padding for column
   alignment (Lua's `#` byte-length and `string.format("%-Ns", …)` mis-pad
   multi-byte unit chars like `·` and `⁻¹`).

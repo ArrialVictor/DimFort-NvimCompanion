@@ -2,6 +2,9 @@
 
 ![preview](social_preview.png)
 
+[![CI](https://github.com/ArrialVictor/DimFort-NvimCompanion/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/ArrialVictor/DimFort-NvimCompanion/actions/workflows/lint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ArrialVictor/DimFort-NvimCompanion/blob/main/LICENSE)
+
 Neovim companion for [DimFort](https://github.com/ArrialVictor/DimFort) —
 the dimensional-homogeneity checker for Fortran. Thin LSP client +
 user commands; the heavy lifting is done by the `dimfort lsp` server.
@@ -86,7 +89,7 @@ require("dimfort").setup({
   -- Hover verbosity. "short" = compact `name : unit` (the default);
   -- "detailed" = full unit-algebra tree; "disabled" = no hover. The
   -- panel is unaffected.
-  -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/hover-ui.md
+  -- See https://github.com/ArrialVictor/DimFort/blob/main/docs/editor-integration/hover-ui.md
   hover = "short",                              -- "disabled" | "short" | "detailed"
 
   -- Scale/magnitude checking (S001 multiplicative, S002 affine-offset).
