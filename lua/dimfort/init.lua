@@ -287,20 +287,34 @@ function M.restart(opts)
     M.attach()
     vim.notify(opts.message or "DimFort: language server restarted",
                vim.log.levels.INFO)
-    -- Force one panel refresh after the new server has had a chance
-    -- to attach + complete its initial scan. Without this, a scale-
-    -- toggle / hover-mode / cache-mode flip would leave the panel
-    -- showing the prior server's payload until the user moved the
-    -- cursor. The 800 ms delay is generous — initial scan is ~600 ms
-    -- on a warm workspace per the bench — but not so long that the
-    -- user notices.
-    vim.defer_fn(function()
-      local ok, panel = pcall(require, "dimfort.panel")
-      if ok and panel and panel.refresh then
-        pcall(panel.refresh)
-      end
-    end, 800)
+    -- Force one panel refresh once the new LSP client is actually
+    -- attached. Polling rather than a fixed delay because the
+    -- attach timeline depends on cache state (initial scan
+    -- ~600 ms warm / ~4 s cold), and a fixed delay would either
+    -- fire too early (request hits no server, panel rebuilds
+    -- against empty payload) or feel sluggish on warm restarts.
+    -- Without this, a scale-toggle / hover-mode / cache-mode flip
+    -- would leave the panel showing the prior server's payload
+    -- until the user moved the cursor.
+    M._restart_wait_and_refresh(vim.uv.hrtime() + 10 * 1e9)
   end, 100)
+end
+
+-- Poll every 300 ms (up to a 10 s deadline) for an attached
+-- DimFort client, then fire one panel refresh once one is found.
+function M._restart_wait_and_refresh(deadline_ns)
+  local clients = vim.lsp.get_clients({ name = "dimfort" })
+  if #clients > 0 then
+    local ok, panel = pcall(require, "dimfort.panel")
+    if ok and panel and panel.refresh then
+      pcall(panel.refresh)
+    end
+    return
+  end
+  if vim.uv.hrtime() >= deadline_ns then return end
+  vim.defer_fn(function()
+    M._restart_wait_and_refresh(deadline_ns)
+  end, 300)
 end
 
 -- Run the workspace check via workspace/executeCommand. Since 0.2.5,
