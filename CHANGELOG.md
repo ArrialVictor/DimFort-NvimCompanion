@@ -9,7 +9,25 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+### Recommended server version
+
+Pair this companion with DimFort **0.2.5+**. The workspace bar listens
+for the new server-fired `dimfort/workspaceCheckCompleted` notification
+(introduced by DimFort 0.2.5's async workspace check refactor). Earlier
+servers don't emit it; the bar would stay on the spinner state forever
+after a refresh trigger.
+
 ### Added
+
+- **Async workspace check** — `:DimFortCheckWorkspace` now sends an
+  executeCommand that the server acks immediately (the work runs
+  server-side on a daemon thread). The fresh workspace coverage
+  payload arrives via the new `dimfort/workspaceCheckCompleted` LSP
+  notification; the bar updates when that lands. A duplicate trigger
+  while a check is in flight surfaces a `vim.notify` info popup
+  instead of silently coalescing. New `M.install_handlers()`
+  registers the global notification handler at setup time. Requires
+  DimFort 0.2.5+.
 
 - **Workspace coverage bar** — side-panel footer now renders a unified
   coverage bar showing per-file and whole-workspace stats:

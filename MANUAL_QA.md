@@ -389,8 +389,25 @@ applies, so they don't pop in and out as the cursor moves.
       anywhere on line 26 (the H010 line) → **• Extract literal '273.15'
       into a named PARAMETER (s)**; `<CR>` prompts for a name and applies
       the refactor.
-- [ ] **Footer** — the panel's last line reads `File: 🔴 N   🟡 N` with
-      the whole-file error / warning counts.
+- [ ] **Footer (coverage bar)** — the panel's last line reads
+      `File: <pct>% (🟡 N 🔴 M)   WS: …` with the active file's
+      coverage on the left and the whole-workspace aggregate on the
+      right.
+- [ ] **WS pre-refresh state** — before the first manual workspace
+      check, the WS segment reads `WS: –` (dimmed).
+- [ ] **Workspace check** — run `:DimFortCheckWorkspace`. The WS
+      segment becomes a Braille spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) for the
+      duration of the server-side check, then settles to
+      `WS: <pct>% (🟡 N 🔴 M)`. The status-bar log line "DimFort
+      workspace check complete: …" fires alongside.
+- [ ] **WS stale state** — after a successful check, edit any
+      Fortran file. The WS segment dims (the snapshot may no
+      longer reflect current state). The File segment updates live.
+- [ ] **Duplicate trigger** — run `:DimFortCheckWorkspace` twice in
+      quick succession while a check is in flight. The second
+      invocation produces a `vim.notify` line "DimFort: workspace
+      check already in progress" instead of spawning a second
+      worker. Confirm with `:messages`.
 
 ### Panel — Scope filter
 
