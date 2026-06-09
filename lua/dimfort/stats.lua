@@ -191,14 +191,25 @@ function M.refresh_workspace(on_done)
   end)
 end
 
--- Called from the DiagnosticChanged autocmd. Refreshes the active file's
--- stats and marks the WS snapshot stale (once we have one).
+-- Called from the DiagnosticChanged autocmd. Refreshes the active
+-- file's stats. Stale-marking for the workspace snapshot is NOT
+-- done here — it lives in M.on_text_changed below. DiagnosticChanged
+-- fires from the server's own post-check publishDiagnostics fan-out
+-- (~2435 files on a real-world codebase), which would immediately
+-- flip ws_stale back to true after the workspace check completion
+-- handler had just cleared it.
 function M.on_diagnostics_changed(buf)
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
   local ok, uri = pcall(vim.uri_from_bufnr, buf)
   if ok and uri and uri ~= "" then
     M.refresh_file(uri)
   end
+end
+
+-- Called from the TextChanged / TextChangedI autocmds. Marks the
+-- workspace snapshot stale once we have one. User-edit signal only;
+-- doesn't fire on server-side publishDiagnostics or other LSP traffic.
+function M.on_text_changed()
   if state.workspace ~= nil and not state.ws_stale then
     state.ws_stale = true
     fire()

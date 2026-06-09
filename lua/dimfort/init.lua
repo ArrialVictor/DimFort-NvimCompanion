@@ -287,6 +287,19 @@ function M.restart(opts)
     M.attach()
     vim.notify(opts.message or "DimFort: language server restarted",
                vim.log.levels.INFO)
+    -- Force one panel refresh after the new server has had a chance
+    -- to attach + complete its initial scan. Without this, a scale-
+    -- toggle / hover-mode / cache-mode flip would leave the panel
+    -- showing the prior server's payload until the user moved the
+    -- cursor. The 800 ms delay is generous — initial scan is ~600 ms
+    -- on a warm workspace per the bench — but not so long that the
+    -- user notices.
+    vim.defer_fn(function()
+      local ok, panel = pcall(require, "dimfort.panel")
+      if ok and panel and panel.refresh then
+        pcall(panel.refresh)
+      end
+    end, 800)
   end, 100)
 end
 
@@ -566,6 +579,18 @@ function M.setup(opts)
         local buf = args.buf or vim.api.nvim_get_current_buf()
         if vim.bo[buf].filetype ~= "fortran" then return end
         stats_mod.on_diagnostics_changed(buf)
+      end,
+    })
+    -- Stale-mark on user edits only (not on server publishDiagnostics
+    -- events, which DiagnosticChanged also fires for — including the
+    -- big post-workspace-check fan-out that would otherwise dim the
+    -- bar instantly after every refresh completed).
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+      group = stats_group,
+      callback = function(args)
+        local buf = args.buf or vim.api.nvim_get_current_buf()
+        if vim.bo[buf].filetype ~= "fortran" then return end
+        stats_mod.on_text_changed()
       end,
     })
   end
