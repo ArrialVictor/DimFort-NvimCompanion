@@ -382,7 +382,7 @@ M.toggle_goto_definition  = function() toggle("goto_definition_enabled",  "go-to
 -- Hover verbosity: a single tri-state cycled disabled -> short ->
 -- detailed. "disabled" = no hover (panel is the unit surface); "short"
 -- = compact `name : unit`; "detailed" = full unit-algebra tree. The
--- panel is unaffected. See DimFort's docs/hover-ui.md.
+-- panel is unaffected. See DimFort's docs/editor-integration/hover-ui.md.
 M.cycle_hover = function()
   cycle("hover", "hover", { "disabled", "short", "detailed" })
 end
@@ -584,7 +584,7 @@ function M.setup(opts)
 
   -- Side panel — opt-in persistent split with the unit-algebra tree
   -- and routine-vars table. Off by default; see
-  -- DimFort/docs/design/panel-info.md.
+  -- DimFort/docs/design/shipped/panel-info.md.
   local panel = require("dimfort.panel")
   panel.config.layout         = M.config.panel_layout
   panel.config.position       = M.config.panel_position

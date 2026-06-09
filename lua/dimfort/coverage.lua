@@ -11,7 +11,7 @@
 -- Refresh is driven by Neovim's DiagnosticChanged autocmd so the
 -- coverage layer stays in lock-step with the squiggles, never racing
 -- the server's own debounce. See
--- `docs/design/future/coverage-visualization.md` in the DimFort repo
+-- `docs/design/shipped/coverage-visualization.md` in the DimFort repo
 -- for the design spec.
 
 local M = {}
