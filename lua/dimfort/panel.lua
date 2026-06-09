@@ -63,6 +63,23 @@ local state = {
 -- Headers + dividers shown in the panel.
 local DIVIDER = string.rep("─", 60)
 
+-- Format a count for the footer bar's parenthetical 🟡 / 🔴 counts.
+-- Three-tier abbreviation chosen so big projects (e.g. 50k+ U-diags
+-- at workspace scale on a real-world codebase) don't blow the footer
+-- width:
+--
+--   ≤ 999       → full integer ("52", "999")        — actionable detail
+--   1000-9999   → one decimal kilo ("1.2k", "9.9k") — order-of-magnitude
+--   10000+      → integer kilo ("12k", "100k")      — coarse signal
+--
+-- Matches the GitHub-stars / Twitter-followers conventions; familiar
+-- enough that no in-bar legend is needed.
+local function fmt_count(n)
+  if n <= 999 then return tostring(n) end
+  if n < 10000 then return string.format("%.1fk", n / 1000) end
+  return string.format("%dk", math.floor(n / 1000))
+end
+
 -- ---------------------------------------------------------------------------
 -- Rendering
 --
@@ -657,8 +674,10 @@ local function render_all()
     emit(cv, DIVIDER)
     local file_text, file_dim
     if snap.file then
-      file_text = string.format("File: %g%% (🟡 %d 🔴 %d)",
-        snap.file.coverage_pct, snap.file.warn, snap.file.fire)
+      file_text = string.format("File: %g%% (🟡 %s 🔴 %s)",
+        snap.file.coverage_pct,
+        fmt_count(snap.file.warn),
+        fmt_count(snap.file.fire))
       file_dim = false
     else
       file_text = "File: –"
@@ -672,8 +691,10 @@ local function render_all()
       ws_text = "Project: –"
       ws_dim = true
     else
-      ws_text = string.format("Project: %g%% (🟡 %d 🔴 %d)",
-        snap.workspace.coverage_pct, snap.workspace.warn, snap.workspace.fire)
+      ws_text = string.format("Project: %g%% (🟡 %s 🔴 %s)",
+        snap.workspace.coverage_pct,
+        fmt_count(snap.workspace.warn),
+        fmt_count(snap.workspace.fire))
       ws_dim = snap.ws_stale
     end
     emit(cv, file_text .. "   " .. ws_text,
