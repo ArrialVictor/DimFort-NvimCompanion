@@ -54,6 +54,14 @@ local defaults = {
   panel_width_fraction = 0.35,
   panel_width_cols = nil,         -- if set (integer), wins over fraction
   panel_debounce_ms = 200,
+  -- Sort mode shared between the Scope and Imports sections (line |
+  -- alphabetic | status). Cycle via :DimFortCycleSortMode. Mirrors
+  -- ``dimfort.panel.sortMode`` in the VSCompanion.
+  panel_sort_mode = "line",
+  -- Unit columns rendered in Scope + Imports (input | canonical |
+  -- both). Default "canonical" — most visually consistent across
+  -- declarations because base-SI forms render uniformly.
+  panel_unit_display_mode = "canonical",
   -- Coverage layer (requires DimFort 0.2.4+). ``disabled`` by default
   -- (opt-in per the design spec); cycle through with
   -- :DimFortCycleCoverage.
@@ -586,11 +594,13 @@ function M.setup(opts)
   -- and routine-vars table. Off by default; see
   -- DimFort/docs/design/shipped/panel-info.md.
   local panel = require("dimfort.panel")
-  panel.config.layout         = M.config.panel_layout
-  panel.config.position       = M.config.panel_position
-  panel.config.width_fraction = M.config.panel_width_fraction
-  panel.config.width_cols     = M.config.panel_width_cols
-  panel.config.debounce_ms    = M.config.panel_debounce_ms
+  panel.config.layout             = M.config.panel_layout
+  panel.config.position           = M.config.panel_position
+  panel.config.width_fraction     = M.config.panel_width_fraction
+  panel.config.width_cols         = M.config.panel_width_cols
+  panel.config.debounce_ms        = M.config.panel_debounce_ms
+  panel.config.sort_mode          = M.config.panel_sort_mode
+  panel.config.unit_display_mode  = M.config.panel_unit_display_mode
   panel.install_autocmds()
   -- Coverage stats: refresh the active buffer's file-coverage on every
   -- DiagnosticChanged event from DimFort, and mark any cached workspace
@@ -653,6 +663,18 @@ function M.setup(opts)
       nargs = "?",
       desc = "DimFort: filter the panel's Imports section by name/unit/"
         .. "module (no argument clears it)",
+    })
+  vim.api.nvim_create_user_command("DimFortCycleSortMode",
+    function() panel.cycle_sort_mode() end,
+    {
+      desc = "DimFort: cycle the panel sort mode (line / alphabetic / "
+        .. "status). Applies to both Scope and Imports.",
+    })
+  vim.api.nvim_create_user_command("DimFortCycleUnitDisplay",
+    function() panel.cycle_unit_display_mode() end,
+    {
+      desc = "DimFort: cycle the panel unit-display mode (input / "
+        .. "canonical / both). Applies to both Scope and Imports.",
     })
   if M.config.panel_enabled then
     -- Open after the LSP attach has had time to settle.
