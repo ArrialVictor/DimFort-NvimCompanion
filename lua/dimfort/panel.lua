@@ -37,6 +37,20 @@ M.config = {
   width_fraction = 0.35,
   width_cols = nil,          -- if set (integer), wins over width_fraction
   debounce_ms = 200,
+  -- Sort mode for Scope + Imports rows. Shared between sections so a
+  -- toggle in one is consistent with the other (matches VSCompanion's
+  -- ``dimfort.panel.sortMode``). Cycle via :DimFortCycleSortMode.
+  --   "line"       — source order (default)
+  --   "alphabetic" — case-insensitive name compare
+  --   "status"     — errors → unannotated → annotated; tie-broken by
+  --                  line for Scope, by name for Imports
+  sort_mode = "line",
+  -- Which unit columns Scope + Imports render. Cycle via
+  -- :DimFortCycleUnitDisplay.
+  --   "input"     — only the source unit (e.g. ``hPa``) — thinnest
+  --   "canonical" — only the canonical base-SI form (default)
+  --   "both"      — input + a normalized column when it differs
+  unit_display_mode = "canonical",
 }
 
 -- Internal state. ``win`` / ``buf`` are the panel's window and buffer
@@ -251,6 +265,67 @@ end
 -- visually — a module-contained subroutine sits one level in from the
 -- module. Two spaces per level; depth rarely exceeds 1 (module →
 -- routine) so the horizontal cost is small.
+-- Rank a Scope/Imports kind for "by status" sort: errors first, then
+-- unannotated, then annotated. The numeric value is consumed by the
+-- comparators below.
+local function status_rank(kind)
+  if kind == "error" then return 0 end
+  if kind == "unannotated" then return 1 end
+  return 2
+end
+
+-- Return ``vars`` sorted per ``M.config.sort_mode``. Builds a shallow
+-- copy so the server-supplied table stays in its original order — the
+-- panel always re-derives display order from the live config.
+local function sort_scope_vars(vars)
+  local out = {}
+  for _, v in ipairs(vars) do table.insert(out, v) end
+  local mode = M.config.sort_mode
+  if mode == "alphabetic" then
+    table.sort(out, function(a, b)
+      return (a.name or ""):lower() < (b.name or ""):lower()
+    end)
+  elseif mode == "status" then
+    table.sort(out, function(a, b)
+      local ra, rb = status_rank(a.kind), status_rank(b.kind)
+      if ra ~= rb then return ra < rb end
+      return (a.line or 0) < (b.line or 0)
+    end)
+  else  -- "line" or anything unrecognised
+    table.sort(out, function(a, b)
+      return (a.line or 0) < (b.line or 0)
+    end)
+  end
+  return out
+end
+
+-- Same shape as ``sort_scope_vars`` but tie-breaks by name for the
+-- Imports section (which doesn't always carry a meaningful line number
+-- past the ``use`` statement line). Status-sort treats annotated as
+-- "fully verified" and unannotated as "needs attention".
+local function sort_imports_vars(vars)
+  local out = {}
+  for _, v in ipairs(vars) do table.insert(out, v) end
+  local mode = M.config.sort_mode
+  if mode == "alphabetic" then
+    table.sort(out, function(a, b)
+      return (a.name or ""):lower() < (b.name or ""):lower()
+    end)
+  elseif mode == "status" then
+    table.sort(out, function(a, b)
+      local ra = (a.kind == "unannotated") and 0 or 1
+      local rb = (b.kind == "unannotated") and 0 or 1
+      if ra ~= rb then return ra < rb end
+      return (a.name or ""):lower() < (b.name or ""):lower()
+    end)
+  else  -- "line"
+    table.sort(out, function(a, b)
+      return (a.line or 0) < (b.line or 0)
+    end)
+  end
+  return out
+end
+
 local function render_scope_vars(cv, scope, vars, depth)
   local pad = string.rep("  ", depth or 0)
   if present(scope) then
@@ -266,19 +341,35 @@ local function render_scope_vars(cv, scope, vars, depth)
     emit(cv, pad .. "  (no declarations)", nil, "Comment")
     return
   end
+  -- Sort per ``M.config.sort_mode`` BEFORE width computation so column
+  -- widths reflect the rendered order.
+  vars = sort_scope_vars(vars)
+  -- Pick which unit slot a row's "unit" cell displays per
+  -- ``M.config.unit_display_mode``. ``input`` is the raw ``v.unit`` as
+  -- in source; ``canonical`` is ``v.unitNormalized`` (falling back to
+  -- ``v.unit`` when the server didn't normalise — already canonical).
+  -- ``both`` matches legacy behaviour: input + a separate normalized
+  -- column shown only when it differs.
+  local display_mode = M.config.unit_display_mode
+  local function shown_unit_for(v)
+    if display_mode == "canonical" then
+      return (present(v.unitNormalized) and v.unitNormalized)
+        or (present(v.unit) and v.unit) or "?"
+    end
+    return present(v.unit) and v.unit or "?"
+  end
   -- Compute column widths over the *displayed* strings so the markers
   -- line up — "?" for unannotated counts toward the unit width. The
-  -- normalized column (``unit ⟶ base-SI``) shows the base-SI expansion
-  -- — and, in scale mode, the multiplicative factor (``hPa ⟶
-  -- 100×kg·m⁻¹·s⁻²``) — for any row whose annotation differs from its
-  -- normalized form. Server-side ``unitNormalized`` already encodes the
-  -- scale-mode-aware rendering; we just show it.
+  -- normalized column (only relevant in ``both`` mode) shows the base-SI
+  -- expansion — and, in scale mode, the multiplicative factor (``hPa
+  -- ⟶ 100×kg·m⁻¹·s⁻²``) — for any row whose annotation differs from
+  -- its normalized form.
   local name_w, unit_w, norm_w = 4, 4, 0
   for _, v in ipairs(vars) do
     name_w = math.max(name_w, vim.fn.strdisplaywidth(v.name))
-    local shown_unit = present(v.unit) and v.unit or "?"
-    unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit))
-    if present(v.unitNormalized) and v.unitNormalized ~= v.unit then
+    unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit_for(v)))
+    if display_mode == "both"
+       and present(v.unitNormalized) and v.unitNormalized ~= v.unit then
       norm_w = math.max(norm_w, vim.fn.strdisplaywidth(v.unitNormalized))
     end
   end
@@ -287,10 +378,11 @@ local function render_scope_vars(cv, scope, vars, depth)
   -- markers stay aligned. Two-space gap between source-unit and
   -- normalized columns matches the side-by-side ``<td>`` convention
   -- used by the VSCode panel — no arrow / separator glyph (column
-  -- spacing already conveys the second cell).
+  -- spacing already conveys the second cell). Only renders in
+  -- ``both`` mode.
   local norm_block_w = (norm_w > 0) and norm_w or 0
   for _, v in ipairs(vars) do
-    local unit = present(v.unit) and v.unit or "?"
+    local unit = shown_unit_for(v)
     -- Every row gets a marker: 🟢 annotated, 🟡 unannotated, 🔴 the
     -- annotation is present but failed to parse (U002). Matches the
     -- expression-tree convention so the whole panel reads the same.
@@ -546,30 +638,36 @@ local function render_imports(cv, imports)
     end
     table.insert(groups[m], im)
   end
+  local display_mode = M.config.unit_display_mode
+  -- Pick the displayed unit per ``unit_display_mode``. Canonical mode
+  -- falls back to ``im.unit`` when the server didn't provide a
+  -- normalised form (means the input is already canonical).
+  local function shown_unit_for(im)
+    if display_mode == "canonical" and present(im.unitNormalized) then
+      return im.unitNormalized
+    end
+    if present(im.unit) then return im.unit end
+    if im.callable == true and im.kind == "annotated" then return "-" end
+    return "?"
+  end
   for _, m in ipairs(order) do
     emit(cv, "  from " .. m)
+    -- Sort the group's rows per the active sort mode before width
+    -- computation (so the layout reflects what the user sees). Module
+    -- headers remain in source ``use``-order regardless.
+    local group_rows = sort_imports_vars(groups[m])
     local name_w, unit_w, norm_w = 4, 4, 0
-    for _, im in ipairs(groups[m]) do
+    for _, im in ipairs(group_rows) do
       name_w = math.max(name_w, vim.fn.strdisplaywidth(import_label(im)))
-      unit_w = math.max(unit_w,
-        vim.fn.strdisplaywidth(present(im.unit) and im.unit or "?"))
-      if present(im.unitNormalized) and im.unitNormalized ~= im.unit then
+      unit_w = math.max(unit_w, vim.fn.strdisplaywidth(shown_unit_for(im)))
+      if display_mode == "both"
+         and present(im.unitNormalized) and im.unitNormalized ~= im.unit then
         norm_w = math.max(norm_w, vim.fn.strdisplaywidth(im.unitNormalized))
       end
     end
     local norm_block_w = (norm_w > 0) and norm_w or 0
-    for _, im in ipairs(groups[m]) do
-      -- A subroutine (callable, no unit, not a missing annotation) reads
-      -- as "-" (structural-no-unit) rather than "?" — it has no return
-      -- value to annotate. Unannotated declarations get "?" (unknown).
-      local unit
-      if present(im.unit) then
-        unit = im.unit
-      elseif im.callable == true and im.kind == "annotated" then
-        unit = "-"
-      else
-        unit = "?"
-      end
+    for _, im in ipairs(group_rows) do
+      local unit = shown_unit_for(im)
       local tail = (im.kind == "unannotated") and " 🟡" or " 🟢"
       local label = import_label(im)
       local name_pad = string.rep(" ", name_w - vim.fn.strdisplaywidth(label))
@@ -646,6 +744,12 @@ local function render_all()
     add_section(cv, "Scope", function(c)
       render_scope(c, payload)
     end)
+    -- Divider between Scope and Imports matches the visual treatment
+    -- already applied around Actions/Scope and Imports/Footer — and
+    -- mirrors the per-view boundary the multi-view VSCompanion gives
+    -- the two sections.
+    emit(cv, DIVIDER)
+    emit(cv, "")
     add_section(cv, "Imports", function(c)
       render_imports(c, present(payload) and payload.imports or {})
     end)
@@ -1097,6 +1201,154 @@ function M.set_imports_filter(query)
   if state.win and vim.api.nvim_win_is_valid(state.win) then
     paint(render_all(), false)
   end
+end
+
+-- Set the shared sort mode (line / alphabetic / status). Mirrors the
+-- VSCompanion title-bar cycle: same setting drives both Scope and
+-- Imports views.
+function M.set_sort_mode(mode)
+  if mode ~= "line" and mode ~= "alphabetic" and mode ~= "status" then
+    return
+  end
+  M.config.sort_mode = mode
+  if state.win and vim.api.nvim_win_is_valid(state.win) then
+    paint(render_all(), false)
+  end
+end
+
+-- Cycle line → alphabetic → status → line. Notifies the user of the
+-- new mode so the command line shows what they're now seeing.
+function M.cycle_sort_mode()
+  local cur = M.config.sort_mode
+  local next_mode
+  if cur == "line" then next_mode = "alphabetic"
+  elseif cur == "alphabetic" then next_mode = "status"
+  else next_mode = "line" end
+  M.set_sort_mode(next_mode)
+  vim.notify("DimFort: sort mode → " .. next_mode, vim.log.levels.INFO)
+end
+
+-- Set the unit-display mode (input / canonical / both). Same shared
+-- setting drives both Scope and Imports views.
+function M.set_unit_display_mode(mode)
+  if mode ~= "input" and mode ~= "canonical" and mode ~= "both" then
+    return
+  end
+  M.config.unit_display_mode = mode
+  if state.win and vim.api.nvim_win_is_valid(state.win) then
+    paint(render_all(), false)
+  end
+end
+
+-- Cycle input → canonical → both → input.
+function M.cycle_unit_display_mode()
+  local cur = M.config.unit_display_mode
+  local next_mode
+  if cur == "input" then next_mode = "canonical"
+  elseif cur == "canonical" then next_mode = "both"
+  else next_mode = "input" end
+  M.set_unit_display_mode(next_mode)
+  vim.notify("DimFort: unit display → " .. next_mode, vim.log.levels.INFO)
+end
+
+-- Open a small floating window with the same File / Project tier
+-- breakdown the VSCompanion shows in its status-bar tooltip. Reads
+-- the cached stats — no fresh LSP request. ``q`` or ``<Esc>`` closes
+-- the window.
+function M.show_coverage_report()
+  -- Pull the same snapshot the footer reads.
+  local uri = nil
+  if state.source_bufnr and vim.api.nvim_buf_is_valid(state.source_bufnr)
+      and vim.bo[state.source_bufnr].filetype == "fortran" then
+    local ok, u = pcall(vim.uri_from_bufnr, state.source_bufnr)
+    if ok then uri = u end
+  end
+  local snap = stats.snapshot(uri)
+
+  -- Build the four tier rows. ``cell()`` mirrors the VSCompanion
+  -- tooltip: italicise (we just use plain "-" here since Nvim's
+  -- floating-window default highlighting doesn't render markdown)
+  -- when the column hasn't been computed. ``fmt_count`` carries the
+  -- k-suffix for large worksets.
+  local function cell(scope, key)
+    if not scope then return "  –  " end
+    return string.format("%5s", fmt_count(scope[key]))
+  end
+  local function pct_cell(scope)
+    if not scope then return "  –  " end
+    return string.format("%4d%%", scope.coverage_pct)
+  end
+
+  local file_head = "File"
+  local proj_head = "Project"
+  if snap.workspace and snap.ws_stale then
+    proj_head = proj_head .. " (stale)"
+  end
+
+  local sep = string.rep("─", 38)
+  local lines = {
+    "DimFort coverage",
+    "",
+    string.format("              %-10s%-10s", file_head, proj_head),
+    sep,
+    string.format("  Coverage    %-10s%-10s",
+                  pct_cell(snap.file), pct_cell(snap.workspace)),
+    string.format("🟢 Verified   %-10s%-10s",
+                  cell(snap.file, "ok"), cell(snap.workspace, "ok")),
+    string.format("🟡 Unverified %-10s%-10s",
+                  cell(snap.file, "warn"), cell(snap.workspace, "warn")),
+    string.format("🔴 Violation  %-10s%-10s",
+                  cell(snap.file, "fire"), cell(snap.workspace, "fire")),
+    string.format("🔵 Unparsed   %-10s%-10s",
+                  cell(snap.file, "unparsed"), cell(snap.workspace, "unparsed")),
+  }
+  if not snap.workspace then
+    table.insert(lines, "")
+    table.insert(lines, "Project coverage not yet computed.")
+    table.insert(lines, "Run :DimFortRefreshWorkspace to compute.")
+  elseif snap.ws_stale then
+    table.insert(lines, "")
+    table.insert(lines, "Files changed since last refresh.")
+    table.insert(lines, "Run :DimFortRefreshWorkspace to update.")
+  end
+  table.insert(lines, "")
+  table.insert(lines, "Press q or <Esc> to close.")
+
+  -- Compute width from the longest line.
+  local width = 0
+  for _, ln in ipairs(lines) do
+    width = math.max(width, vim.fn.strdisplaywidth(ln))
+  end
+  width = width + 2
+  local height = #lines
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = "dimfort_coverage"
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    style = "minimal",
+    border = "rounded",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    title = " DimFort Coverage ",
+    title_pos = "center",
+  })
+  vim.wo[win].wrap = false
+  vim.wo[win].cursorline = false
+  -- Close on q or <Esc>.
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end
+  vim.keymap.set("n", "q", close, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<Esc>", close, { buffer = buf, nowait = true })
 end
 
 -- Bind autocmds for cursor-follow updates. Called from the plugin's
