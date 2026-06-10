@@ -510,6 +510,23 @@ local function on_attach(args)
     end, { buffer = args.buf, desc = "DimFort hover" })
   end
 
+  -- Prime the panel footer's file-stats cache on attach. Otherwise
+  -- ``stats.refresh_file`` only fires on DiagnosticChanged — and on a
+  -- freshly-opened buffer with no diagnostics arriving (workspace
+  -- check ran before the user opened the file, no edits yet), the
+  -- footer's ``File:`` cell stays ``–`` until the user types. Defer
+  -- 1.5 s so the LSP attach has time to settle.
+  vim.defer_fn(function()
+    if not vim.api.nvim_buf_is_valid(args.buf) then return end
+    if vim.bo[args.buf].filetype ~= "fortran" then return end
+    local ok, stats_mod = pcall(require, "dimfort.stats")
+    if not ok or not stats_mod or not stats_mod.refresh_file then return end
+    local ok_uri, uri = pcall(vim.uri_from_bufnr, args.buf)
+    if ok_uri and uri and uri ~= "" then
+      pcall(stats_mod.refresh_file, uri)
+    end
+  end, 1500)
+
   if not (vim.lsp.inlay_hint and vim.lsp.inlay_hint.enable) then return end
   pcall(vim.lsp.inlay_hint.enable,
         M.config.inlay_hints_enabled,
