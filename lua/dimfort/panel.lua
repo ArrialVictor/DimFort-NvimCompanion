@@ -744,6 +744,12 @@ local function render_all()
     add_section(cv, "Scope", function(c)
       render_scope(c, payload)
     end)
+    -- Divider between Scope and Imports matches the visual treatment
+    -- already applied around Actions/Scope and Imports/Footer — and
+    -- mirrors the per-view boundary the multi-view VSCompanion gives
+    -- the two sections.
+    emit(cv, DIVIDER)
+    emit(cv, "")
     add_section(cv, "Imports", function(c)
       render_imports(c, present(payload) and payload.imports or {})
     end)
@@ -1243,6 +1249,106 @@ function M.cycle_unit_display_mode()
   else next_mode = "input" end
   M.set_unit_display_mode(next_mode)
   vim.notify("DimFort: unit display → " .. next_mode, vim.log.levels.INFO)
+end
+
+-- Open a small floating window with the same File / Project tier
+-- breakdown the VSCompanion shows in its status-bar tooltip. Reads
+-- the cached stats — no fresh LSP request. ``q`` or ``<Esc>`` closes
+-- the window.
+function M.show_coverage_report()
+  -- Pull the same snapshot the footer reads.
+  local uri = nil
+  if state.source_bufnr and vim.api.nvim_buf_is_valid(state.source_bufnr)
+      and vim.bo[state.source_bufnr].filetype == "fortran" then
+    local ok, u = pcall(vim.uri_from_bufnr, state.source_bufnr)
+    if ok then uri = u end
+  end
+  local snap = stats.snapshot(uri)
+
+  -- Build the four tier rows. ``cell()`` mirrors the VSCompanion
+  -- tooltip: italicise (we just use plain "-" here since Nvim's
+  -- floating-window default highlighting doesn't render markdown)
+  -- when the column hasn't been computed. ``fmt_count`` carries the
+  -- k-suffix for large worksets.
+  local function cell(scope, key)
+    if not scope then return "  –  " end
+    return string.format("%5s", fmt_count(scope[key]))
+  end
+  local function pct_cell(scope)
+    if not scope then return "  –  " end
+    return string.format("%4d%%", scope.coverage_pct)
+  end
+
+  local file_head = "File"
+  local proj_head = "Project"
+  if snap.workspace and snap.ws_stale then
+    proj_head = proj_head .. " (stale)"
+  end
+
+  local sep = string.rep("─", 38)
+  local lines = {
+    "DimFort coverage",
+    "",
+    string.format("              %-10s%-10s", file_head, proj_head),
+    sep,
+    string.format("  Coverage    %-10s%-10s",
+                  pct_cell(snap.file), pct_cell(snap.workspace)),
+    string.format("🟢 Verified   %-10s%-10s",
+                  cell(snap.file, "ok"), cell(snap.workspace, "ok")),
+    string.format("🟡 Unverified %-10s%-10s",
+                  cell(snap.file, "warn"), cell(snap.workspace, "warn")),
+    string.format("🔴 Violation  %-10s%-10s",
+                  cell(snap.file, "fire"), cell(snap.workspace, "fire")),
+    string.format("🔵 Unparsed   %-10s%-10s",
+                  cell(snap.file, "unparsed"), cell(snap.workspace, "unparsed")),
+  }
+  if not snap.workspace then
+    table.insert(lines, "")
+    table.insert(lines, "Project coverage not yet computed.")
+    table.insert(lines, "Run :DimFortRefreshWorkspace to compute.")
+  elseif snap.ws_stale then
+    table.insert(lines, "")
+    table.insert(lines, "Files changed since last refresh.")
+    table.insert(lines, "Run :DimFortRefreshWorkspace to update.")
+  end
+  table.insert(lines, "")
+  table.insert(lines, "Press q or <Esc> to close.")
+
+  -- Compute width from the longest line.
+  local width = 0
+  for _, ln in ipairs(lines) do
+    width = math.max(width, vim.fn.strdisplaywidth(ln))
+  end
+  width = width + 2
+  local height = #lines
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = "dimfort_coverage"
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    style = "minimal",
+    border = "rounded",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    title = " DimFort Coverage ",
+    title_pos = "center",
+  })
+  vim.wo[win].wrap = false
+  vim.wo[win].cursorline = false
+  -- Close on q or <Esc>.
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end
+  vim.keymap.set("n", "q", close, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "<Esc>", close, { buffer = buf, nowait = true })
 end
 
 -- Bind autocmds for cursor-follow updates. Called from the plugin's

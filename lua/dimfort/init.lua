@@ -676,6 +676,13 @@ function M.setup(opts)
       desc = "DimFort: cycle the panel unit-display mode (input / "
         .. "canonical / both). Applies to both Scope and Imports.",
     })
+  vim.api.nvim_create_user_command("DimFortCoverageReport",
+    function() panel.show_coverage_report() end,
+    {
+      desc = "DimFort: open a floating window with the full File / "
+        .. "Project tier breakdown (Verified / Unverified / Violation "
+        .. "/ Unparsed). Mirrors the VSCompanion status-bar tooltip.",
+    })
   if M.config.panel_enabled then
     -- Open after the LSP attach has had time to settle.
     vim.defer_fn(function() panel.open() end, 500)
