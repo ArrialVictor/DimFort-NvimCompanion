@@ -103,7 +103,12 @@ require("dimfort").setup({
 
   -- Side panel (on by default; :DimFortTogglePanel to close).
   panel_enabled        = true,
-  panel_layout         = "both",                -- "both" | "expression" | "routine"
+  -- Per-section visibility (0.2.6). Toggle in-session with
+  -- :DimFortToggleCursor / -Scope / -Imports; set defaults here for
+  -- cross-session persistence.
+  panel_show_cursor    = true,                  -- Expression / Diagnostics / Interactions / Actions
+  panel_show_scope     = true,
+  panel_show_imports   = true,
   panel_position       = "right",               -- "right" | "left" | "bottom"
   panel_width_fraction = 0.35,                  -- fraction of editor width
   panel_width_cols     = nil,                   -- explicit cols; wins over fraction
@@ -126,7 +131,6 @@ from your own autocommand or keymap.
 | Command                                  | Effect                                                              |
 |------------------------------------------|---------------------------------------------------------------------|
 | `:DimFortCheckWorkspace`                 | Run the workspace-wide unit check; also refreshes the panel footer's `Project:` segment. |
-| `:DimFortRefreshWorkspace`               | Alias of `:DimFortCheckWorkspace` for parity with the VSCode companion's command name. |
 | `:DimFortRestart`                        | Restart the language server.                                        |
 | `:DimFortStatus`                         | Print current feature toggles and client id.                        |
 | `:DimFortToggleInlayHints`               | Toggle inlay hints; restarts the server.                            |
@@ -134,11 +138,14 @@ from your own autocommand or keymap.
 | `:DimFortToggleCodeActions`              | Toggle code actions; restarts the server.                           |
 | `:DimFortToggleGotoDefinition`           | Toggle go-to-definition; restarts the server.                       |
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
-| `:DimFortToggleCache`                    | Toggle content-hash cache between `off` and `read-write`.           |
+| `:DimFortCycleCache`                     | Cycle content-hash cache through `off` → `read-only` → `read-write`. |
+| `:DimFortClearCache`                     | Delete the `.dimfort-cache/` directory and restart the server.       |
 | `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
 | `:DimFortCycleCoverage`                  | Cycle coverage visualisation (`disabled` → `gutter` → `background`); companion-only (no LSP restart). |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
-| `:DimFortPanelLayout {both\|expression\|routine}` | Switch which panel sections are shown.                     |
+| `:DimFortToggleCursor`                   | Show / hide the Cursor section (Expression / Diagnostics / Interactions / Actions). |
+| `:DimFortToggleScope`                    | Show / hide the Scope section.                                       |
+| `:DimFortToggleImports`                  | Show / hide the Imports section.                                     |
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
 | `:DimFortScopeFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
 | `:DimFortImportsFilter [query]`          | Filter the panel's Imports section by name/unit/module (no argument clears). |
