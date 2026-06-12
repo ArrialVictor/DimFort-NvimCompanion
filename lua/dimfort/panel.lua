@@ -1323,7 +1323,12 @@ function M.show_coverage_report()
     "",
     string.format("              %-10s%-10s", file_head, proj_head),
     sep,
-    string.format("  Coverage    %-10s%-10s",
+    -- Coverage line gets a 3-cell prefix to match the emoji-bearing
+    -- tier rows below: the bullet column is 2 display cells (🟢 / 🟡
+    -- / 🔴 / 🔵) + 1 trailing space, so plain spaces here need to
+    -- total 3 cells for the labels to share a baseline. Mirrors the
+    -- VSCompanion fix (4242763).
+    string.format("   Coverage   %-10s%-10s",
                   pct_cell(snap.file), pct_cell(snap.workspace)),
     string.format("🟢 Verified   %-10s%-10s",
                   cell(snap.file, "ok"), cell(snap.workspace, "ok")),
