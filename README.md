@@ -93,7 +93,7 @@ require("dimfort").setup({
   hover = "short",                              -- "disabled" | "short" | "detailed"
 
   -- Scale/magnitude checking (S001 multiplicative, S002 affine-offset).
-  -- "auto" defers to the project .dimfort.toml [scale] enabled;
+  -- "auto" defers to the project dimfort.toml [scale] enabled;
   -- "on"/"off" override it. Cycle with :DimFortCycleScale.
   scale_mode = "auto",                          -- "auto" | "on" | "off"
 
@@ -118,7 +118,7 @@ require("dimfort").setup({
   max_workset_size = 40,                        -- cap on workset size
   external_modules = {},                        -- modules treated as known-out-of-workset
   filetypes        = { "fortran" },             -- buffers DimFort attaches to
-  root_markers     = { ".dimfort.toml", ".git" },
+  root_markers     = { "dimfort.toml", ".git" },
   auto_attach      = true,                      -- attach via FileType autocmd
 })
 ```
@@ -140,7 +140,8 @@ from your own autocommand or keymap.
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortCycleCache`                     | Cycle content-hash cache through `off` → `read-only` → `read-write`. |
 | `:DimFortClearCache`                     | Delete the `.dimfort-cache/` directory and restart the server.       |
-| `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `.dimfort.toml`. |
+| `:DimFortOpenConfig`                     | Quick-pick between `dimfort.toml` (workspace config) and the project units file. Each opens if it exists, or creates a commented stub if not. When creating a units file: sub-pick `Empty file` or `Reference template (bundled defaults, all commented out)`. Auto-wires `[units].file = "units.toml"` into `dimfort.toml`. |
+| `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `dimfort.toml`. |
 | `:DimFortCycleCoverage`                  | Cycle coverage visualisation (`disabled` → `gutter` → `background`); companion-only (no LSP restart). |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
 | `:DimFortToggleCursor`                   | Show / hide the Cursor section (Expression / Diagnostics / Interactions / Actions). |
