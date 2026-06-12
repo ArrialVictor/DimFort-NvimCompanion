@@ -364,11 +364,14 @@ it refreshes.
       (subroutine); the Scope section switches between `Function:
       dynamic_pressure` and `Subroutine: checks`.
 
-### Panel — Diagnostics / Interactions / Actions (the `both` layout)
+### Panel — Diagnostics / Interactions / Actions
 
-These three sections sit between Expression and Scope in the default
-`both` layout. Each is always present, showing `(none)` when nothing
-applies, so they don't pop in and out as the cursor moves.
+These three sections sit inside the Cursor block (alongside
+Expression) and are toggled together via `:DimFortToggleCursor`
+(0.2.6) — see the section on per-section visibility below. They sit
+between Expression and Scope in the default layout (all three
+sections visible). Each is always present, showing `(none)` when
+nothing applies, so they don't pop in and out as the cursor moves.
 
 - [ ] **Diagnostics** — cursor on line 25 (`bogus = c_sound * t`); the
       Diagnostics section shows **🔴 H001: …** (the cursor-line
@@ -415,6 +418,146 @@ applies, so they don't pop in and out as the cursor moves.
       whose name or unit matches `Pa` (e.g. `ref_pressure`, `q`), and
       shows a `Filter: "Pa"` header. Scopes with no surviving variables
       are hidden. `:DimFortScopeFilter` with no argument clears it.
+
+## Panel sort, unit display, coverage report, [N/5] (0.2.6)
+
+With `qa.f90` open:
+
+### Panel sort cycle (`panel_sort_mode`)
+
+- [ ] **`:DimFortCycleSortMode`** cycles the sort across both Scope
+      and Imports sections **synchronously**: `line → alphabetic →
+      status → line`. The default is `line`. The two sections always
+      share the same mode (mirrors the VSCompanion's
+      `dimfort.panel.sortMode`).
+
+- [ ] **Persistence within session** — once cycled, the new mode
+      applies on subsequent cursor moves, scope changes, and
+      `:DimFortPanelToggle` reopens. (Cross-session persistence is
+      driven by the user's `setup{}` `panel_sort_mode` value; not
+      auto-persisted to disk.)
+
+### Panel unit-display cycle (`panel_unit_display_mode`)
+
+- [ ] **`:DimFortCycleUnitDisplay`** cycles the unit display across
+      both Scope and Imports **synchronously**: `canonical → input →
+      both → canonical`. The default is `canonical`.
+      - **canonical**: one unit column, base-SI normalised (e.g.
+        `m·s⁻¹`).
+      - **input**: one unit column, the annotation as written (e.g.
+        `m/s`). Thinnest layout.
+      - **both**: two unit columns side-by-side
+        (`input ⟶ normalised`). Widest layout.
+
+- [ ] **Synchronous on both sections** — run from either; both
+      re-render to the new mode in the same panel repaint.
+
+### Divider between Scope and Imports
+
+- [ ] **Visual divider** — a horizontal separator line is drawn
+      between the Scope and Imports sections, so the two areas
+      don't visually run together. Verify on a buffer where both
+      sections have content (the `imports_qa.f90` scene below
+      fits — cursor inside `solver`'s `step` routine).
+
+### `:DimFortCoverageReport` floating window
+
+- [ ] **Open the report** — with `qa.f90` open, run
+      `:DimFortCoverageReport`. A floating window opens with the
+      File row populated (current-buffer's coverage stats — works
+      on cold-open, no edits needed). The Project row reads
+      `Run :DimFortCheckWorkspace to compute.` until the user
+      triggers a workspace check.
+
+- [ ] **Async re-render on workspace check** — with the report
+      window still open, run `:DimFortCheckWorkspace`. When the
+      server's `dimfort/workspaceCheckCompleted` notification
+      arrives, the Project row updates in-place (no race; no
+      flicker; the window stays open).
+
+- [ ] **Project goes stale on edit** — after the Project row has
+      populated, edit any buffer. The Project row reads
+      `Run :DimFortCheckWorkspace to update.` to signal the
+      snapshot is stale.
+
+### Prime stats on LspAttach (PR #24)
+
+- [ ] **Cold-open footer populates** — open `qa.f90` in a fresh
+      Neovim session (LSP not yet attached). When the LSP
+      attaches (`:LspInfo` shows DimFort attached), the panel
+      footer's `File:` segment populates with the current
+      buffer's coverage stats **without** any edit / cursor
+      move / save. Was empty-until-first-DiagnosticChanged
+      before PR #24.
+
+### `[N/5]` workspace-check phase counter (PR #81 on DimFort server)
+
+- [ ] **Five-step indicator visible** — run `:DimFortCheckWorkspace`
+      on a workspace large enough to keep each phase visible for
+      at least a second (a few hundred files+; `qa.f90` alone is
+      too fast). With `fidget.nvim` (or any LSP progress widget)
+      installed, the progress notification walks through:
+      - `[1/5] loading <i>/<N> <file>`
+      - `[2/5] indexing modules <i>/<N> <file>`
+      - `[3/5] checking <i>/<N> <file>`
+      - `[4/5] published <N>/<N>`
+      - `[5/5] projecting coverage…`
+
+      The `[5/5]` message must remain visible for the full
+      duration of the post-publish projection step (several
+      seconds on a real-world ~2400-file workspace) before the
+      notification closes. Without a progress widget installed,
+      this check is a no-op (Neovim's default doesn't render
+      `workDoneProgress` at all).
+
+### Per-section visibility (`panel_show_*`)
+
+Replaces the previous tristate `:DimFortPanelLayout` command (which
+flipped between `both` / `expression` / `routine`). Each section is
+now independently toggleable; defaults to all three visible.
+
+- [ ] **`:DimFortToggleCursor`** hides the Expression / Diagnostics /
+      Interactions / Actions block. Echo area reads
+      `DimFort: Cursor section hidden`. Run again to show it. Scope
+      and Imports remain unaffected.
+
+- [ ] **`:DimFortToggleScope`** hides the Scope section only.
+
+- [ ] **`:DimFortToggleImports`** hides the Imports section only.
+
+- [ ] **Dividers adapt** — toggle Cursor off; the `─────` divider
+      that used to sit between the Cursor block and Scope is gone
+      (no stranded separator). Toggle Scope off; the divider between
+      Scope and Imports also disappears. Visible dividers always sit
+      between two visible neighbours.
+
+- [ ] **Footer always visible** — toggle ALL three sections off. The
+      panel buffer now shows only the footer (`File: …  Project:
+      …`). The footer is universal — it doesn't track section
+      visibility.
+
+- [ ] **Cross-session default via `setup{}`** — to start a session
+      with one section hidden, add e.g.
+      `panel_show_imports = false` to your
+      `require('dimfort').setup{...}` call. In-session toggles do not
+      persist to disk; setup{} is the source of truth for defaults.
+
+### Cache cycle + clear (`:DimFortCycleCache` / `:DimFortClearCache`)
+
+- [ ] **`:DimFortCycleCache`** cycles `dimfort.config.cache_mode`
+      through `off → read-only → read-write → off`. Echo area
+      reports each tick (`DimFort: cache → read-only`, etc.). The
+      server restarts on each tick (cache mode is a wire-level
+      setting). Previously (0.2.5) the command was a 2-state toggle
+      skipping `read-only`; 0.2.6 brings parity with the `cache_mode`
+      enum's full range.
+
+- [ ] **`:DimFortClearCache`** deletes the `.dimfort-cache/`
+      directory under the workspace root and restarts the server.
+      Echo area reads `DimFort: cache cleared (…)`. When the cache
+      directory doesn't exist, reads `DimFort: cache directory does
+      not exist (already clean).`. Mirrors VSCompanion's
+      `dimfort.clearCache` and Emacs's `M-x dimfort-clear-cache`.
 
 ## Scale checking (S001 / S002)
 

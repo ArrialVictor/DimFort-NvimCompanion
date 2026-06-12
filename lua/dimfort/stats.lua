@@ -7,7 +7,7 @@
 --      change (cheap; the server keeps a per-file cache).
 --   2. Workspace-scope snapshot. Populated ONLY by the user invoking
 --      :DimFortCheckWorkspace (workspace/executeCommand
---      dimfort.checkWorkspace). The wire response carries the fresh
+--      dimfort/checkWorkspace). The wire response carries the fresh
 --      aggregate so we don't have to round-trip a second request.
 --   3. wsStale flag — set once any diagnostics change after the last
 --      successful workspace refresh, so the panel dims the Project segment
@@ -143,7 +143,7 @@ function M.install_handlers()
     handle_workspace_check_completed
 end
 
--- Run a workspace refresh via workspace/executeCommand dimfort.checkWorkspace.
+-- Run a workspace refresh via workspace/executeCommand dimfort/checkWorkspace.
 -- Async since 0.2.5: the server returns {started: bool} immediately and
 -- fires dimfort/workspaceCheckCompleted when the actual check finishes.
 -- Spinner runs continuously until the completion notification arrives.
@@ -169,7 +169,7 @@ function M.refresh_workspace(on_done)
   start_spinner()
   fire()
   client:request("workspace/executeCommand", {
-    command = "dimfort.checkWorkspace",
+    command = "dimfort/checkWorkspace",
     arguments = {},
   }, function(err, ack)
     -- We're acknowledging the ack only. The real payload arrives

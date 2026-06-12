@@ -12,9 +12,12 @@
 -- Rows are navigable: press <CR> on a declaration / diagnostic / site to
 -- jump to it (cross-file for interactions), or on an action to apply it.
 --
--- Off by default; toggle via :DimFortTogglePanel. Layout switches via
--- :DimFortPanelLayout {both|expression|routine} — the volatile
--- Diagnostics / Interactions / Actions sections show in the "both" layout.
+-- Off by default; toggle the whole panel via :DimFortTogglePanel.
+-- Per-section visibility (0.2.6): :DimFortToggleCursor /
+-- :DimFortToggleScope / :DimFortToggleImports flip the corresponding
+-- ``M.config.show_{cursor,scope,imports}`` booleans (defaults true).
+-- The Cursor section bundles Expression / Diagnostics / Interactions
+-- / Actions; mirrors VSCompanion's three-View split.
 --
 -- Wire protocol: ``dimfort/panelInfo`` + ``dimfort/interactions`` LSP
 -- requests and ``textDocument/codeAction`` — see
@@ -26,13 +29,21 @@ local M = {}
 
 ---@class DimFortPanelConfig
 ---@field enabled boolean
----@field layout "both"|"expression"|"routine"
+---@field show_cursor boolean
+---@field show_scope boolean
+---@field show_imports boolean
 ---@field position "right"|"left"|"bottom"
 ---@field width_fraction number       -- 0.0 - 1.0 of editor width
 ---@field debounce_ms integer
 M.config = {
   enabled = false,
-  layout = "both",
+  -- Per-section visibility (0.2.6). Replaces the previous tristate
+  -- ``layout`` (both/expression/routine) with three independent
+  -- booleans, matching VSCompanion's
+  -- ``dimfort.show.{cursor,scope,imports}``.
+  show_cursor = true,
+  show_scope = true,
+  show_imports = true,
   position = "right",
   width_fraction = 0.35,
   width_cols = nil,          -- if set (integer), wins over width_fraction
@@ -712,9 +723,15 @@ end
 local function render_all()
   local cv = new_canvas()
   local payload = state.last_payload
-  local layout = M.config.layout
+  -- Per-section visibility (0.2.6). Replaces the previous tristate.
+  -- Each section renders independently; dividers between sections
+  -- only emit when both neighbours are visible, so toggling any one
+  -- off doesn't leave a stranded separator.
+  local show_cursor  = M.config.show_cursor
+  local show_scope   = M.config.show_scope
+  local show_imports = M.config.show_imports
 
-  if layout == "both" or layout == "expression" then
+  if show_cursor then
     add_section(cv, "Expression", function(c)
       if present(payload) and present(payload.expression) then
         render_expression(c, payload.expression)
@@ -722,9 +739,6 @@ local function render_all()
         emit(c, "  (none)", nil, "Comment")
       end
     end)
-  end
-
-  if layout == "both" then
     add_section(cv, "Diagnostics", function(c)
       render_diagnostics(c, present(payload) and payload.diagnostics or {})
     end)
@@ -736,20 +750,25 @@ local function render_all()
     end)
   end
 
-  if layout == "both" or layout == "routine" then
-    if layout == "both" then
+  if show_scope then
+    if show_cursor then
       emit(cv, DIVIDER)
       emit(cv, "")
     end
     add_section(cv, "Scope", function(c)
       render_scope(c, payload)
     end)
-    -- Divider between Scope and Imports matches the visual treatment
-    -- already applied around Actions/Scope and Imports/Footer — and
-    -- mirrors the per-view boundary the multi-view VSCompanion gives
-    -- the two sections.
-    emit(cv, DIVIDER)
-    emit(cv, "")
+  end
+
+  if show_imports then
+    if show_scope or show_cursor then
+      -- Divider between Scope and Imports matches the visual
+      -- treatment already applied around Actions/Scope and
+      -- Imports/Footer — and mirrors the per-view boundary the
+      -- multi-view VSCompanion gives the two sections.
+      emit(cv, DIVIDER)
+      emit(cv, "")
+    end
     add_section(cv, "Imports", function(c)
       render_imports(c, present(payload) and payload.imports or {})
     end)
@@ -767,7 +786,12 @@ local function render_all()
   --   refresh in flight                   → "Project: <spinner>" (dimmed)
   --   have data, fresh                    → "Project: <pct>% (🟡 N 🔴 M)"
   --   have data, stale (files edited)     → same, dimmed
-  if layout == "both" or layout == "routine" then
+  -- Footer is always rendered regardless of which sections are
+  -- toggled — the project-wide coverage indicator is universally
+  -- useful and users who hide all three sections still benefit from
+  -- seeing the live coverage stats. (Previously this only showed in
+  -- `both` / `routine` modes of the deprecated layout tristate.)
+  do
     local uri = nil
     if state.source_bufnr and vim.api.nvim_buf_is_valid(state.source_bufnr)
         and vim.bo[state.source_bufnr].filetype == "fortran" then
@@ -1172,18 +1196,26 @@ function M.toggle()
   end
 end
 
-function M.set_layout(layout)
-  if layout ~= "both" and layout ~= "expression" and layout ~= "routine" then
-    vim.notify("DimFort: panel layout must be 'both', 'expression', or 'routine'",
-               vim.log.levels.ERROR)
-    return
-  end
-  M.config.layout = layout
-  vim.notify("DimFort: panel layout → " .. layout, vim.log.levels.INFO)
+-- Per-section visibility toggles (0.2.6). Replace the previous
+-- `set_layout` tristate. Each function flips one boolean in
+-- `M.config.show_{cursor,scope,imports}` and repaints; the changes
+-- persist for the session (set the default in setup{} for cross-
+-- session persistence). Mirrors VSCompanion's
+-- `dimfort.toggleCursor/Scope/Imports` and Emacs's analogues.
+local function _toggle_section(key, label)
+  M.config[key] = not M.config[key]
+  vim.notify(
+    string.format("DimFort: %s section %s", label,
+                  M.config[key] and "shown" or "hidden"),
+    vim.log.levels.INFO)
   if state.win and vim.api.nvim_win_is_valid(state.win) then
     paint(render_all(), false)
   end
 end
+
+function M.toggle_cursor()  _toggle_section("show_cursor",  "Cursor")  end
+function M.toggle_scope()   _toggle_section("show_scope",   "Scope")   end
+function M.toggle_imports() _toggle_section("show_imports", "Imports") end
 
 -- Set (or clear, with no argument) the Scope section's name/unit filter.
 -- Client-side: no LSP round-trip, repaints from the cached payload.
@@ -1305,11 +1337,11 @@ function M.show_coverage_report()
   if not snap.workspace then
     table.insert(lines, "")
     table.insert(lines, "Project coverage not yet computed.")
-    table.insert(lines, "Run :DimFortRefreshWorkspace to compute.")
+    table.insert(lines, "Run :DimFortCheckWorkspace to compute.")
   elseif snap.ws_stale then
     table.insert(lines, "")
     table.insert(lines, "Files changed since last refresh.")
-    table.insert(lines, "Run :DimFortRefreshWorkspace to update.")
+    table.insert(lines, "Run :DimFortCheckWorkspace to update.")
   end
   table.insert(lines, "")
   table.insert(lines, "Press q or <Esc> to close.")

@@ -20,7 +20,9 @@ local M = {}
 ---@field cache_mode DimFortCacheMode
 ---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
 ---@field panel_enabled boolean                -- open side panel on attach
----@field panel_layout "both"|"expression"|"routine"
+---@field panel_show_cursor boolean              -- Expression / Diagnostics / Interactions / Actions
+---@field panel_show_scope boolean
+---@field panel_show_imports boolean
 ---@field panel_position "right"|"left"|"bottom"
 ---@field panel_width_fraction number          -- fraction of editor width
 ---@field panel_debounce_ms integer            -- cursor-follow debounce
@@ -49,7 +51,20 @@ local defaults = {
   cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
   panel_enabled = true,              -- open the side panel on attach
-  panel_layout = "both",
+  -- Per-section visibility (0.2.6). Replaces the previous tristate
+  -- ``panel_layout`` ("both" / "expression" / "routine") with three
+  -- independent booleans, matching VSCompanion's
+  -- ``dimfort.show.{cursor,scope,imports}`` settings.
+  --   panel_show_cursor — Expression / Diagnostics / Interactions /
+  --                       Actions sections (cursor-pinned)
+  --   panel_show_scope  — declarations in enclosing scopes at cursor
+  --   panel_show_imports — symbols brought in by `use` clauses
+  -- Toggle in-session with :DimFortToggleCursor / -Scope / -Imports.
+  -- Cross-session persistence: set the defaults you want here in your
+  -- ``require('dimfort').setup{}`` call.
+  panel_show_cursor = true,
+  panel_show_scope = true,
+  panel_show_imports = true,
   panel_position = "right",
   panel_width_fraction = 0.35,
   panel_width_cols = nil,         -- if set (integer), wins over fraction
@@ -395,13 +410,45 @@ M.cycle_hover = function()
   cycle("hover", "hover", { "disabled", "short", "detailed" })
 end
 
--- Content-hash cache toggle flips between the two useful modes (off
--- and read-write). The middle "read-only" mode is reachable via
--- :lua require('dimfort').config.cache_mode = "read-only" + restart,
--- since the binary-toggle ergonomics from the palette aren't useful
--- for that mid-state.
-M.toggle_cache = function()
-  cycle("cache_mode", "cache", { "off", "read-write" })
+-- Content-hash cache mode cycles all three values
+-- (off → read-only → read-write → off), matching cycle_hover /
+-- cycle_scale / cycle_coverage. The read-only mode is for
+-- consult-without-write workflows (e.g. inspecting a frozen
+-- snapshot of someone else's cache).
+M.cycle_cache = function()
+  cycle("cache_mode", "cache", { "off", "read-only", "read-write" })
+end
+
+-- Delete the on-disk cache directory and restart the server so the
+-- next workspace check rebuilds it from scratch. Matches VSCompanion's
+-- ``dimfort.clearCache`` command. Cache dir mirrors the server's
+-- resolution: the user's ``cache_dir`` setting if set, else
+-- ``.dimfort-cache/`` under the first workspace folder.
+M.clear_cache = function()
+  local dir = M.config.cache_dir
+  if dir == nil or dir == "" then
+    local workspace = vim.fn.getcwd()
+    if workspace == nil or workspace == "" then
+      vim.notify("DimFort: no workspace folder — nothing to clear.",
+                 vim.log.levels.WARN)
+      return
+    end
+    dir = workspace .. "/.dimfort-cache"
+  end
+  local stat = vim.uv.fs_stat(dir)
+  if stat == nil then
+    vim.notify("DimFort: cache directory does not exist (already clean).",
+               vim.log.levels.INFO)
+  else
+    local ok, err = pcall(vim.fn.delete, dir, "rf")
+    if not ok or err == -1 then
+      vim.notify("DimFort: clear cache failed — " .. tostring(err),
+                 vim.log.levels.ERROR)
+      return
+    end
+    vim.notify("DimFort: cache cleared (" .. dir .. ")", vim.log.levels.INFO)
+  end
+  M.restart({ message = "DimFort: restarting after cache clear" })
 end
 
 -- Scale checking is tri-state: "auto" defers to the project .dimfort.toml
@@ -585,9 +632,12 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortCycleHover",
     function() M.cycle_hover() end,
     { desc = "DimFort: cycle hover verbosity (disabled/short/detailed)" })
-  vim.api.nvim_create_user_command("DimFortToggleCache",
-    function() M.toggle_cache() end,
-    { desc = "DimFort: toggle content-hash cache between off and read-write" })
+  vim.api.nvim_create_user_command("DimFortCycleCache",
+    function() M.cycle_cache() end,
+    { desc = "DimFort: cycle content-hash cache (off / read-only / read-write)" })
+  vim.api.nvim_create_user_command("DimFortClearCache",
+    function() M.clear_cache() end,
+    { desc = "DimFort: delete the .dimfort-cache/ directory and restart the server" })
   vim.api.nvim_create_user_command("DimFortCycleScale",
     function() M.cycle_scale() end,
     { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to .dimfort.toml" })
@@ -611,7 +661,9 @@ function M.setup(opts)
   -- and routine-vars table. Off by default; see
   -- DimFort/docs/design/shipped/panel-info.md.
   local panel = require("dimfort.panel")
-  panel.config.layout             = M.config.panel_layout
+  panel.config.show_cursor        = M.config.panel_show_cursor
+  panel.config.show_scope         = M.config.panel_show_scope
+  panel.config.show_imports       = M.config.panel_show_imports
   panel.config.position           = M.config.panel_position
   panel.config.width_fraction     = M.config.panel_width_fraction
   panel.config.width_cols         = M.config.panel_width_cols
@@ -650,20 +702,23 @@ function M.setup(opts)
       end,
     })
   end
-  vim.api.nvim_create_user_command("DimFortRefreshWorkspace",
-    function() M.check_workspace() end,
-    { desc = "DimFort: refresh whole-workspace coverage (alias for "
-      .. ":DimFortCheckWorkspace)" })
   vim.api.nvim_create_user_command("DimFortTogglePanel",
     function() panel.toggle() end,
     { desc = "DimFort: open/close the side panel" })
-  vim.api.nvim_create_user_command("DimFortPanelLayout",
-    function(args) panel.set_layout(args.args) end,
-    {
-      nargs = 1,
-      complete = function() return { "both", "expression", "routine" } end,
-      desc = "DimFort: switch panel layout (both | expression | routine)",
-    })
+  -- Per-section visibility toggles (0.2.6). Replace the previous
+  -- :DimFortPanelLayout tristate with three independent toggles
+  -- matching VSCompanion's dimfort.show.{cursor,scope,imports}
+  -- settings + Emacs's dimfort-toggle-{cursor,scope,imports}.
+  vim.api.nvim_create_user_command("DimFortToggleCursor",
+    function() panel.toggle_cursor() end,
+    { desc = "DimFort: show/hide the Cursor section (Expression / "
+      .. "Diagnostics / Interactions / Actions)" })
+  vim.api.nvim_create_user_command("DimFortToggleScope",
+    function() panel.toggle_scope() end,
+    { desc = "DimFort: show/hide the Scope section" })
+  vim.api.nvim_create_user_command("DimFortToggleImports",
+    function() panel.toggle_imports() end,
+    { desc = "DimFort: show/hide the Imports section" })
   vim.api.nvim_create_user_command("DimFortPanelRefresh",
     function() panel.refresh() end,
     { desc = "DimFort: force-refresh the side panel" })
