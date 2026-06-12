@@ -668,11 +668,11 @@ local function _open_or_create_dimfort_toml(root)
     return
   end
   vim.ui.select(
-    { "Empty template", "All sections (all commented out)" },
+    { "Empty file", "Reference template (all sections commented out)" },
     { prompt = "DimFort — Project configuration file: start from?" },
     function(choice)
       if choice == nil then return end
-      local content = (choice == "Empty template")
+      local content = (choice == "Empty file")
         and _dimfort_toml_stub_empty()
         or _dimfort_toml_stub()
       _write_file(path, content)
@@ -688,11 +688,11 @@ local function _open_or_create_units_file(root)
     return
   end
   vim.ui.select(
-    { "Empty template", "Defaults as reference (all commented out)" },
+    { "Empty file", "Reference template (bundled defaults, all commented out)" },
     { prompt = "DimFort — Project units file: start from?" },
     function(choice)
       if choice == nil then return end
-      local content = (choice == "Empty template")
+      local content = (choice == "Empty file")
         and _units_stub_empty()
         or _units_stub_from_defaults()
       _write_file(path, content)

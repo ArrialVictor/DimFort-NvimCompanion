@@ -567,15 +567,15 @@ directory before each subsection.
 
 - [ ] **`dimfort.toml` empty cold-create** — run
       `:DimFortOpenConfig`, pick `Project configuration file
-      (dimfort.toml)`. A sub-pick shows `Empty template` and
-      `All sections (all commented out)`. Pick `Empty
+      (dimfort.toml)`. A sub-pick shows `Empty file` and
+      `Reference template (all sections commented out)`. Pick `Empty
       template`. A new `dimfort.toml` appears at the cwd,
       opens in the current buffer, and contains just the
       minimal header. Echo area reads `DimFort: created
       <path>/dimfort.toml`.
 
 - [ ] **`dimfort.toml` all-sections cold-create** — same as
-      above but pick `All sections (all commented out)`. The
+      above but pick `Reference template (all sections commented out)`. The
       file's `[units]` / `[parser]` / `[diagnostics]` /
       `[scale]` / `[project]` section headers are all
       present but each line is prefixed with `# `.
@@ -587,9 +587,9 @@ directory before each subsection.
 
 - [ ] **Units file empty cold-create** — run
       `:DimFortOpenConfig`, pick `Project units file
-      (units.toml)`. A sub-pick shows `Empty template` and
-      `Defaults as reference (all commented out)`. Pick
-      `Empty template`.
+      (units.toml)`. A sub-pick shows `Empty file` and
+      `Reference template (bundled defaults, all commented out)`. Pick
+      `Empty file`.
       A new `units.toml` appears, opens, and contains the
       empty-template stub. A new `dimfort.toml` appears
       alongside with `[units]\nfile = "units.toml"`. Echo
@@ -597,7 +597,7 @@ directory before each subsection.
       dimfort.toml`.
 
 - [ ] **Units file defaults cold-create** — same as above but
-      pick `Defaults as reference (all commented out)`. The
+      pick `Reference template (bundled defaults, all commented out)`. The
       file's `[base]` / `[prefixes]` / `[derived]` sections
       are all present but each line is prefixed with `# `.
 

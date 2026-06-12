@@ -140,7 +140,7 @@ from your own autocommand or keymap.
 | `:DimFortCycleHover`                     | Cycle hover verbosity (disabled → short → detailed); restarts.      |
 | `:DimFortCycleCache`                     | Cycle content-hash cache through `off` → `read-only` → `read-write`. |
 | `:DimFortClearCache`                     | Delete the `.dimfort-cache/` directory and restart the server.       |
-| `:DimFortOpenConfig`                     | Quick-pick between `dimfort.toml` (workspace config) and the project units file. Each opens if it exists, or creates a commented stub if not. When creating a units file: sub-pick `Empty template` or `Defaults as reference (all commented out)`. Auto-wires `[units].file = "units.toml"` into `dimfort.toml`. |
+| `:DimFortOpenConfig`                     | Quick-pick between `dimfort.toml` (workspace config) and the project units file. Each opens if it exists, or creates a commented stub if not. When creating a units file: sub-pick `Empty file` or `Reference template (bundled defaults, all commented out)`. Auto-wires `[units].file = "units.toml"` into `dimfort.toml`. |
 | `:DimFortCycleScale`                     | Cycle scale checking (`auto` → `on` → `off`); `auto` defers to `dimfort.toml`. |
 | `:DimFortCycleCoverage`                  | Cycle coverage visualisation (`disabled` → `gutter` → `background`); companion-only (no LSP restart). |
 | `:DimFortTogglePanel`                    | Open / close the side panel.                                        |
