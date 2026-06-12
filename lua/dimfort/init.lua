@@ -494,6 +494,225 @@ function M.status()
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
+-- =====================================================================
+-- :DimFortOpenConfig — open or create .dimfort.toml / project units file.
+-- =====================================================================
+--
+-- Mirrors VSCompanion's ``DimFort: Open Config…`` palette command and
+-- Emacs's ``M-x dimfort-open-config``. Quick-pick via ``vim.ui.select``
+-- over the two project config files; each opens if it exists, creates
+-- a commented stub if not. When creating units file, sub-pick offers
+-- ``Empty template`` vs ``Defaults as reference (all commented out)``;
+-- the defaults flavour shells out to ``dimfort show-defaults units``
+-- and prefixes every line with ``# ``. Auto-wires ``[units].file =
+-- "units.toml"`` into ``.dimfort.toml`` (creating that file if needed)
+-- so the server picks up the new units file immediately.
+
+local function _workspace_root()
+  -- Use the cwd as the workspace root. Matches VSCompanion's
+  -- ``workspaceFolders[0]`` and Emacs's ``project-root`` fallback.
+  local cwd = vim.fn.getcwd()
+  if cwd == nil or cwd == "" then
+    return nil
+  end
+  return cwd
+end
+
+local function _file_exists(path)
+  return vim.uv.fs_stat(path) ~= nil
+end
+
+local function _write_file(path, content)
+  local fd, err = vim.uv.fs_open(path, "w", 420)  -- 0644
+  if fd == nil then
+    error("DimFort: cannot write " .. path .. ": " .. tostring(err))
+  end
+  vim.uv.fs_write(fd, content, 0)
+  vim.uv.fs_close(fd)
+end
+
+local function _read_file(path)
+  local fd = vim.uv.fs_open(path, "r", 420)
+  if fd == nil then return nil end
+  local stat = vim.uv.fs_fstat(fd)
+  local content = vim.uv.fs_read(fd, stat.size, 0)
+  vim.uv.fs_close(fd)
+  return content
+end
+
+local function _dimfort_toml_stub()
+  return table.concat({
+    "# DimFort project configuration.",
+    "#",
+    "# Optional. Without this file, DimFort uses bundled defaults for",
+    "# everything. Each section below is also optional — uncomment +",
+    "# customise as needed. Reference:",
+    "#   https://github.com/ArrialVictor/DimFort/blob/main/docs/reference/dimfort-toml.md",
+    "",
+    "# [units]",
+    '# file = "units.toml"   # Project units file (extends bundled defaults)',
+    "",
+    "# [parser]",
+    "# # Extra comment delimiters for unit annotations.",
+    "# # Defaults already recognise `!< @unit{...}` and friends.",
+    "",
+    "# [diagnostics]",
+    '# # H001 = "off"   # Per-code severity overrides',
+    "",
+    "# [scale]",
+    "# # enabled = true   # Enable S001/S002 scale-aware checking",
+    "",
+    "# [project]",
+    '# # src_paths = ["src"]   # Narrow the workspace check to these subdirs',
+    "",
+  }, "\n")
+end
+
+local function _units_stub_header()
+  return table.concat({
+    "# DimFort project units file.",
+    "#",
+    "# Extends (does not replace) the bundled defaults. To see what's",
+    "# already in the defaults, run:  dimfort show-defaults units",
+    "#",
+    "# Schema:",
+    "#   [base]     — base units mapping to SI dimension slots",
+    "#                (M / L / T / Theta / I / N / J)",
+    '#   [prefixes] — SI prefix multipliers (numeric or "p/q" rationals)',
+    "#   [derived]  — derived units; `expr` parsed against the table;",
+    "#                `prefixable = true` opts in to prefix expansion",
+    "#",
+    "",
+  }, "\n")
+end
+
+local function _units_stub_empty()
+  return _units_stub_header() .. table.concat({
+    "# Example: a custom derived unit.",
+    "#",
+    "# [derived]",
+    '# barrel = { expr = "159 * L", prefixable = false }   # US oil barrel',
+    "",
+  }, "\n")
+end
+
+local function _units_stub_from_defaults()
+  local executable = M.config.executable or "dimfort"
+  local result = vim.system({ executable, "show-defaults", "units" },
+                            { text = true }):wait()
+  if result.code ~= 0 or result.stdout == nil or result.stdout == "" then
+    return _units_stub_empty() .. table.concat({
+      "",
+      "# (Couldn't fetch the bundled defaults; install or upgrade",
+      "#  DimFort, then run `dimfort show-defaults units` to see",
+      "#  what's available.)",
+      "",
+    }, "\n")
+  end
+  -- Comment every non-comment, non-blank line.
+  local commented = {}
+  for line in (result.stdout):gmatch("([^\n]*)\n?") do
+    if line == "" or line:sub(1, 1) == "#" then
+      table.insert(commented, line)
+    else
+      table.insert(commented, "# " .. line)
+    end
+  end
+  return _units_stub_header() .. table.concat({
+    "# Below: bundled defaults, ALL commented out.",
+    "# Uncomment any line to enable, override, or extend.",
+    "# To start from scratch instead, delete everything below this banner.",
+    "#",
+    "",
+  }, "\n") .. table.concat(commented, "\n")
+end
+
+-- Returns one of "wired" / "already-wired" / "exists-with-units-section".
+local function _try_wire_units_file(toml_path)
+  local existing = _file_exists(toml_path) and _read_file(toml_path) or ""
+  -- ``[units]`` followed by content (no new ``[section]``) containing ``file = ...``.
+  if existing:match("%[units%][^%[]-\n%s*file%s*=") then
+    return "already-wired"
+  end
+  if existing:match("\n%[units%]%s*\n") or existing:match("^%[units%]%s*\n") then
+    -- Section exists but no file key. Inserting mid-section with string
+    -- ops is fragile; defer to the user.
+    return "exists-with-units-section"
+  end
+  local sep
+  if existing == "" then
+    sep = ""
+  elseif existing:sub(-1) ~= "\n" then
+    sep = "\n\n"
+  else
+    sep = "\n"
+  end
+  _write_file(toml_path, existing .. sep .. '[units]\nfile = "units.toml"\n')
+  return "wired"
+end
+
+local function _open_or_create_dimfort_toml(root)
+  local path = root .. "/.dimfort.toml"
+  if not _file_exists(path) then
+    _write_file(path, _dimfort_toml_stub())
+    vim.notify("DimFort: created " .. path, vim.log.levels.INFO)
+  end
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+end
+
+local function _open_or_create_units_file(root)
+  local path = root .. "/units.toml"
+  if _file_exists(path) then
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    return
+  end
+  vim.ui.select(
+    { "Empty template", "Defaults as reference (all commented out)" },
+    { prompt = "DimFort — Project units file: start from?" },
+    function(choice)
+      if choice == nil then return end
+      local content = (choice == "Empty template")
+        and _units_stub_empty()
+        or _units_stub_from_defaults()
+      _write_file(path, content)
+      local wired = _try_wire_units_file(root .. "/.dimfort.toml")
+      vim.cmd("edit " .. vim.fn.fnameescape(path))
+      if wired == "wired" then
+        vim.notify("DimFort: created units.toml + wired into .dimfort.toml",
+                   vim.log.levels.INFO)
+      elseif wired == "exists-with-units-section" then
+        vim.notify(
+          'DimFort: created units.toml. Your .dimfort.toml already has a ' ..
+          '[units] section — add \'file = "units.toml"\' under it to enable ' ..
+          'the new file.',
+          vim.log.levels.WARN)
+      else
+        vim.notify("DimFort: created units.toml", vim.log.levels.INFO)
+      end
+    end)
+end
+
+function M.open_config()
+  local root = _workspace_root()
+  if root == nil then
+    vim.notify(
+      "DimFort: cd into a workspace folder first; nothing to wire a config into.",
+      vim.log.levels.WARN)
+    return
+  end
+  vim.ui.select(
+    { ".dimfort.toml", "Project units file" },
+    { prompt = "DimFort — Open Config: which config file?" },
+    function(choice)
+      if choice == nil then return end
+      if choice == ".dimfort.toml" then
+        _open_or_create_dimfort_toml(root)
+      else
+        _open_or_create_units_file(root)
+      end
+    end)
+end
+
 -- Run on every LspAttach for a DimFort client. Enables Neovim's
 -- buffer-local inlay-hint rendering when the server flag is on,
 -- disables it otherwise — so the user doesn't have to manage the
@@ -638,6 +857,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("DimFortClearCache",
     function() M.clear_cache() end,
     { desc = "DimFort: delete the .dimfort-cache/ directory and restart the server" })
+  vim.api.nvim_create_user_command("DimFortOpenConfig",
+    function() M.open_config() end,
+    { desc = "DimFort: open or create .dimfort.toml or the project units file" })
   vim.api.nvim_create_user_command("DimFortCycleScale",
     function() M.cycle_scale() end,
     { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to .dimfort.toml" })
