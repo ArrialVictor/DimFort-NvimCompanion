@@ -562,29 +562,39 @@ now independently toggleable; defaults to all three visible.
 ### `:DimFortOpenConfig` (0.2.6)
 
 These checks need a **fresh workspace folder** with no
-`.dimfort.toml` and no `units.toml`. `cd` into an empty
+`dimfort.toml` and no `units.toml`. `cd` into an empty
 directory before each subsection.
 
-- [ ] **`.dimfort.toml` cold-create** — run
-      `:DimFortOpenConfig`, pick `.dimfort.toml`. A new
-      `.dimfort.toml` appears at the cwd, opens in the current
-      buffer, and contains a commented stub (every section
-      header present but commented). Echo area reads
-      `DimFort: created <path>/.dimfort.toml`.
+- [ ] **`dimfort.toml` empty cold-create** — run
+      `:DimFortOpenConfig`, pick `Project configuration file
+      (dimfort.toml)`. A sub-pick shows `Empty template` and
+      `All sections (all commented out)`. Pick `Empty
+      template`. A new `dimfort.toml` appears at the cwd,
+      opens in the current buffer, and contains just the
+      minimal header. Echo area reads `DimFort: created
+      <path>/dimfort.toml`.
 
-- [ ] **`.dimfort.toml` warm-open** — run again, pick
-      `.dimfort.toml`. Opens the existing file with no
-      modification. No "created" echo.
+- [ ] **`dimfort.toml` all-sections cold-create** — same as
+      above but pick `All sections (all commented out)`. The
+      file's `[units]` / `[parser]` / `[diagnostics]` /
+      `[scale]` / `[project]` section headers are all
+      present but each line is prefixed with `# `.
+
+- [ ] **`dimfort.toml` warm-open** — run again, pick
+      `Project configuration file (dimfort.toml)`. Opens the
+      existing file with no sub-pick and no modification. No
+      "created" echo.
 
 - [ ] **Units file empty cold-create** — run
-      `:DimFortOpenConfig`, pick `Project units file`. A
-      sub-pick shows `Empty template` and `Defaults as
-      reference (all commented out)`. Pick `Empty template`.
+      `:DimFortOpenConfig`, pick `Project units file
+      (units.toml)`. A sub-pick shows `Empty template` and
+      `Defaults as reference (all commented out)`. Pick
+      `Empty template`.
       A new `units.toml` appears, opens, and contains the
-      empty-template stub. A new `.dimfort.toml` appears
+      empty-template stub. A new `dimfort.toml` appears
       alongside with `[units]\nfile = "units.toml"`. Echo
       area: `DimFort: created units.toml + wired into
-      .dimfort.toml`.
+      dimfort.toml`.
 
 - [ ] **Units file defaults cold-create** — same as above but
       pick `Defaults as reference (all commented out)`. The
@@ -592,27 +602,27 @@ directory before each subsection.
       are all present but each line is prefixed with `# `.
 
 - [ ] **Auto-wire appends `[units]` to existing
-      `.dimfort.toml`** — pre-create a `.dimfort.toml`
+      `dimfort.toml`** — pre-create a `dimfort.toml`
       containing only `[diagnostics]\nH001 = "off"\n` (no
       `[units]`). Run `:DimFortOpenConfig`, pick `Project
-      units file`. After creation, the existing
-      `.dimfort.toml` is appended with
+      units file (units.toml)`. After creation, the existing
+      `dimfort.toml` is appended with
       `[units]\nfile = "units.toml"`. Original sections
       preserved.
 
 - [ ] **Edge case: existing `[units]` section** —
-      pre-create a `.dimfort.toml` containing
+      pre-create a `dimfort.toml` containing
       `[units]\nother_key = "value"\n`. Run the command +
       pick units file. After creation, echo area shows a
       WARN-level notification: `DimFort: created
-      units.toml. Your .dimfort.toml already has a [units]
+      units.toml. Your dimfort.toml already has a [units]
       section — add 'file = "units.toml"' under it to enable
-      the new file.`. The `.dimfort.toml` is **not**
+      the new file.`. The `dimfort.toml` is **not**
       modified.
 
 ## Scale checking (S001 / S002)
 
-Save this `scale_qa.f90` and open it (no `.dimfort.toml` needed — the
+Save this `scale_qa.f90` and open it (no `dimfort.toml` needed — the
 editor toggle drives it):
 
 ```fortran
@@ -632,7 +642,7 @@ end module scale_qa
 ```
 
 - [ ] **Auto (default)** — with `scale_mode = "auto"` and no
-      `.dimfort.toml`, the file is **clean** (no S001/S002).
+      `dimfort.toml`, the file is **clean** (no S001/S002).
 - [ ] **On** — `:DimFortCycleScale` until the notification says
       `scale checking → on` (the server restarts): **yellow** squiggles
       appear — `phpa = play` → **S001**, `t_k = t_c` → **S002** — and the
@@ -701,7 +711,7 @@ end subroutine unparsed_qa
       line 8 (clean autocast → `m·s⁻¹`).
 - [ ] **Doesn't mask real checks** — the `H001` still fires; P001 only marks
       what it *couldn't* read, it doesn't suppress checking elsewhere.
-- [ ] **Suppressible** — add a workspace `.dimfort.toml` with
+- [ ] **Suppressible** — add a workspace `dimfort.toml` with
       `[diagnostics]` `P001 = "off"`, save; the blue squiggle disappears
       (no manual restart), the red `H001` stays.
 
@@ -819,7 +829,7 @@ subroutine delim_demo
 end subroutine
 ```
 
-Save this `.dimfort.toml` next to it:
+Save this `dimfort.toml` next to it:
 
 ```toml
 [parser]
@@ -855,7 +865,7 @@ unit_comment_delimiters = [
 
 ## Polymorphism (0.2.3)
 
-Save this as `poly_qa.f90` in a fresh folder (no `.dimfort.toml`
+Save this as `poly_qa.f90` in a fresh folder (no `dimfort.toml`
 needed — defaults are fine). The scene covers four cases: clean
 polymorphic body, dishonest body, caller mismatch, clean caller.
 

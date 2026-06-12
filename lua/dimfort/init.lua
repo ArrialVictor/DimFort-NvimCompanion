@@ -16,7 +16,7 @@ local M = {}
 ---@field code_actions_enabled boolean
 ---@field goto_definition_enabled boolean
 ---@field hover "disabled"|"short"|"detailed"  -- hover verbosity (panel unaffected)
----@field scale_mode "auto"|"on"|"off"        -- scale checking; auto = defer to .dimfort.toml
+---@field scale_mode "auto"|"on"|"off"        -- scale checking; auto = defer to dimfort.toml
 ---@field cache_mode DimFortCacheMode
 ---@field cache_dir string                     -- empty = .dimfort-cache/ under workspace root
 ---@field panel_enabled boolean                -- open side panel on attach
@@ -47,7 +47,7 @@ local defaults = {
   code_actions_enabled = true,
   goto_definition_enabled = true,
   hover = "short",                   -- one-line `name : unit` on hover
-  scale_mode = "auto",               -- "auto" defers to .dimfort.toml; "on"/"off" override
+  scale_mode = "auto",               -- "auto" defers to dimfort.toml; "on"/"off" override
   cache_mode = "read-write",         -- cache on by default
   cache_dir = "",
   panel_enabled = true,              -- open the side panel on attach
@@ -85,7 +85,7 @@ local defaults = {
   max_workset_size = 40,
   external_modules = {},
   filetypes = { "fortran" },
-  root_markers = { ".dimfort.toml", ".git" },
+  root_markers = { "dimfort.toml", ".git" },
   auto_attach = true,
   -- DimFort hover floats default to a rounded border so they read as
   -- a discrete card even when the user's colorscheme leaves
@@ -123,7 +123,7 @@ local function init_options()
     opts.cacheDir = M.config.cache_dir
   end
   -- Scale checking is tri-state: "auto" omits scaleMode so the server's
-  -- .dimfort.toml [scale] enabled wins; "on"/"off" send an explicit
+  -- dimfort.toml [scale] enabled wins; "on"/"off" send an explicit
   -- boolean that overrides the toml for the session.
   if M.config.scale_mode == "on" then
     opts.scaleMode = true
@@ -451,7 +451,7 @@ M.clear_cache = function()
   M.restart({ message = "DimFort: restarting after cache clear" })
 end
 
--- Scale checking is tri-state: "auto" defers to the project .dimfort.toml
+-- Scale checking is tri-state: "auto" defers to the project dimfort.toml
 -- ([scale] enabled), "on"/"off" override it for the session. Cycled
 -- auto -> on -> off; restarts so the new scaleMode reaches the server.
 M.cycle_scale = function()
@@ -495,7 +495,7 @@ function M.status()
 end
 
 -- =====================================================================
--- :DimFortOpenConfig — open or create .dimfort.toml / project units file.
+-- :DimFortOpenConfig — open or create dimfort.toml / project units file.
 -- =====================================================================
 --
 -- Mirrors VSCompanion's ``DimFort: Open Config…`` palette command and
@@ -505,7 +505,7 @@ end
 -- ``Empty template`` vs ``Defaults as reference (all commented out)``;
 -- the defaults flavour shells out to ``dimfort show-defaults units``
 -- and prefixes every line with ``# ``. Auto-wires ``[units].file =
--- "units.toml"`` into ``.dimfort.toml`` (creating that file if needed)
+-- "units.toml"`` into ``dimfort.toml`` (creating that file if needed)
 -- so the server picks up the new units file immediately.
 
 local function _workspace_root()
@@ -538,6 +538,16 @@ local function _read_file(path)
   local content = vim.uv.fs_read(fd, stat.size, 0)
   vim.uv.fs_close(fd)
   return content
+end
+
+local function _dimfort_toml_stub_empty()
+  return table.concat({
+    "# DimFort project configuration.",
+    "#",
+    "# Add project-wide settings here. Reference:",
+    "#   https://github.com/ArrialVictor/DimFort/blob/main/docs/reference/dimfort-toml.md",
+    "",
+  }, "\n")
 end
 
 local function _dimfort_toml_stub()
@@ -652,12 +662,23 @@ local function _try_wire_units_file(toml_path)
 end
 
 local function _open_or_create_dimfort_toml(root)
-  local path = root .. "/.dimfort.toml"
-  if not _file_exists(path) then
-    _write_file(path, _dimfort_toml_stub())
-    vim.notify("DimFort: created " .. path, vim.log.levels.INFO)
+  local path = root .. "/dimfort.toml"
+  if _file_exists(path) then
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+    return
   end
-  vim.cmd("edit " .. vim.fn.fnameescape(path))
+  vim.ui.select(
+    { "Empty template", "All sections (all commented out)" },
+    { prompt = "DimFort — Project configuration file: start from?" },
+    function(choice)
+      if choice == nil then return end
+      local content = (choice == "Empty template")
+        and _dimfort_toml_stub_empty()
+        or _dimfort_toml_stub()
+      _write_file(path, content)
+      vim.cmd("edit " .. vim.fn.fnameescape(path))
+      vim.notify("DimFort: created " .. path, vim.log.levels.INFO)
+    end)
 end
 
 local function _open_or_create_units_file(root)
@@ -675,14 +696,14 @@ local function _open_or_create_units_file(root)
         and _units_stub_empty()
         or _units_stub_from_defaults()
       _write_file(path, content)
-      local wired = _try_wire_units_file(root .. "/.dimfort.toml")
+      local wired = _try_wire_units_file(root .. "/dimfort.toml")
       vim.cmd("edit " .. vim.fn.fnameescape(path))
       if wired == "wired" then
-        vim.notify("DimFort: created units.toml + wired into .dimfort.toml",
+        vim.notify("DimFort: created units.toml + wired into dimfort.toml",
                    vim.log.levels.INFO)
       elseif wired == "exists-with-units-section" then
         vim.notify(
-          'DimFort: created units.toml. Your .dimfort.toml already has a ' ..
+          'DimFort: created units.toml. Your dimfort.toml already has a ' ..
           '[units] section — add \'file = "units.toml"\' under it to enable ' ..
           'the new file.',
           vim.log.levels.WARN)
@@ -701,11 +722,14 @@ function M.open_config()
     return
   end
   vim.ui.select(
-    { ".dimfort.toml", "Project units file" },
+    {
+      "Project configuration file (dimfort.toml)",
+      "Project units file (units.toml)",
+    },
     { prompt = "DimFort — Open Config: which config file?" },
     function(choice)
       if choice == nil then return end
-      if choice == ".dimfort.toml" then
+      if choice == "Project configuration file (dimfort.toml)" then
         _open_or_create_dimfort_toml(root)
       else
         _open_or_create_units_file(root)
@@ -859,10 +883,10 @@ function M.setup(opts)
     { desc = "DimFort: delete the .dimfort-cache/ directory and restart the server" })
   vim.api.nvim_create_user_command("DimFortOpenConfig",
     function() M.open_config() end,
-    { desc = "DimFort: open or create .dimfort.toml or the project units file" })
+    { desc = "DimFort: open or create dimfort.toml or the project units file" })
   vim.api.nvim_create_user_command("DimFortCycleScale",
     function() M.cycle_scale() end,
-    { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to .dimfort.toml" })
+    { desc = "DimFort: cycle scale checking (auto/on/off); auto defers to dimfort.toml" })
   vim.api.nvim_create_user_command("DimFortCycleCoverage",
     function() M.cycle_coverage() end,
     { desc = "DimFort: cycle coverage visualisation (disabled/gutter/background)" })
