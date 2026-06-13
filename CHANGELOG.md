@@ -7,6 +7,89 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [0.2.6] — 2026-06-13
+
+### Highlight
+
+Cross-companion parity release. Two threads:
+
+1. **Sort + unit-display modes on the side panel** — feature parity
+   with VSCompanion. Scope and Imports sections now carry per-
+   section sort mode (`line` / `alphabetic` / `status`) and
+   per-section unit-display mode (`input` / `canonical` / `both`),
+   cycled via new `:DimFort…` user commands.
+
+2. **Coverage report buffer + `:DimFortOpenConfig`.** A
+   `:DimFortCoverageReport` floating window mirrors VSCompanion's
+   status-bar coverage tooltip — same per-tier breakdown table,
+   keyboard-friendly. `:DimFortOpenConfig` matches its VSCode and
+   Emacs siblings, with the same sub-pick for missing-file case
+   (Empty file / Reference template).
+
+### Recommended server version
+
+Pair this companion with DimFort **0.2.6+**. The workspace-check
+wire-protocol command renamed from `dimfort.checkWorkspace` (dot)
+to `dimfort/checkWorkspace` (slash) server-side; this companion now
+sends the slash form. Earlier servers (0.2.5 and below) accept both
+for one release as a soft-migration window, but pairing with 0.2.6+
+gets you the new workspace-less / index-not-ready toasts and the
+`[N/5]` workspace-check progress phase counter — neither of which is
+client-side.
+
+### Added
+
+- **`:DimFortOpenConfig`** — opens the project `dimfort.toml` if
+  present, the project units file if present, or pops a sub-pick
+  for the missing-file case (Empty file / Reference template).
+  Matches `DimFort: Open Config…` (VSCode) and
+  `M-x dimfort-open-config` (Emacs) exactly.
+
+- **`:DimFortCoverageReport`** — floating window with the per-tier
+  coverage breakdown (Verified / Unverified / Violation / Unparsed,
+  for both file and project scope). Same content as VSCompanion's
+  status-bar tooltip, surfaced via a keyboard-friendly modal
+  buffer. Press `q` or `<Esc>` to close.
+
+- **Sort + unit-display modes on the panel.** Both Scope and
+  Imports sections now respond to `:DimFortCycleSortMode`
+  (line / alphabetic / status) and `:DimFortCycleUnitDisplay`
+  (input / canonical / both). Defaults: sort = `line`,
+  unit-display = `canonical`. Mirrors VSCompanion's title-bar
+  controls.
+
+- **Divider between Scope and Imports** — visual separator in the
+  panel buffer to make the section boundary obvious.
+
+- **MANUAL_QA additions** — extra QA fixtures covering the new
+  panel surfaces (sort modes, unit-display modes, coverage report)
+  plus the cross-companion command audit set.
+
+### Changed
+
+- **Wire-protocol command** — `:DimFortCheckWorkspace` now sends
+  `dimfort/checkWorkspace` (slash) instead of `dimfort.checkWorkspace`
+  (dot). Cosmetic on the client. Requires DimFort 0.2.5+ to receive.
+
+### Fixed
+
+- **Coverage footer alignment in `:DimFortCoverageReport`.** The
+  `Coverage` label sat one display cell to the left of the bulleted
+  tier labels (🟢 Verified / 🟡 Unverified / 🔴 Violation / 🔵
+  Unparsed) — fixed by reserving a 3-cell bullet column so all five
+  labels share a baseline.
+
+- **Panel footer File-stats prime on `LspAttach`.** Pre-fix, the
+  footer's File segment stayed at "–" until the first
+  `DiagnosticChanged` event landed (often several keystrokes in).
+  Now primed at attach time, so the footer is populated as soon as
+  the panel opens.
+
+### Docs
+
+- **Pre-release docs audit** caught: `.dimfort.toml` → `dimfort.toml`
+  rename straggler in the bug-report template HTML comment.
+
 ## [0.2.5] — 2026-06-09
 
 ### Recommended server version
