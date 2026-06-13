@@ -150,6 +150,9 @@ from your own autocommand or keymap.
 | `:DimFortPanelRefresh`                   | Force a panel refresh (debugging).                                  |
 | `:DimFortScopeFilter [query]`            | Filter the panel's Scope section by name/unit (no argument clears). |
 | `:DimFortImportsFilter [query]`          | Filter the panel's Imports section by name/unit/module (no argument clears). |
+| `:DimFortCycleSortMode`                  | Cycle the panel sort mode shared by Scope and Imports (`line` → `alphabetic` → `status`). |
+| `:DimFortCycleUnitDisplay`               | Cycle the unit-display mode shared by Scope and Imports (`input` → `canonical` → `both`). |
+| `:DimFortCoverageReport`                 | Open a floating window with the per-tier coverage breakdown (Verified / Unverified / Violation / Unparsed, for both file and project scope). Press `q` or `<Esc>` to close. |
 
 ## Side panel
 
