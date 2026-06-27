@@ -169,18 +169,33 @@ local function find_root(bufnr)
   local found = matches[1]
   if found then
     local root = vim.fs.dirname(found)
-    M._root_source = "dimfort.toml"
-    if #matches > 1 and not _warned_nested_roots[root] then
-      _warned_nested_roots[root] = true
-      vim.notify(
-        string.format(
-          "DimFort: found dimfort.toml at %s; note another exists at %s above. "
-          .. "The lower one is in effect — the upper one is ignored.",
-          found,
-          matches[2]
-        ),
-        vim.log.levels.INFO
-      )
+    -- Tag with the actual marker basename, not the canonical
+    -- "dimfort.toml" — projects that override ``root_markers`` to
+    -- include ``.git`` (or anything else) should see their actual
+    -- marker reflected, not a hardcoded label.
+    M._root_source = vim.fs.basename(found)
+    -- Nested-marker warning: only fires for nested ``dimfort.toml``.
+    -- A second ``.git`` upstream is just the user's home or a
+    -- personal-projects parent — noise, not signal. The warning's
+    -- purpose is to surface unintended sub-project / configuration
+    -- drift, which only applies to DimFort's own project marker.
+    if vim.fs.basename(found) == "dimfort.toml" then
+      for i = 2, #matches do
+        if vim.fs.basename(matches[i]) == "dimfort.toml"
+            and not _warned_nested_roots[root] then
+          _warned_nested_roots[root] = true
+          vim.notify(
+            string.format(
+              "DimFort: found dimfort.toml at %s; note another exists at %s above. "
+              .. "The lower one is in effect — the upper one is ignored.",
+              found,
+              matches[i]
+            ),
+            vim.log.levels.INFO
+          )
+          break
+        end
+      end
     end
     return root
   end

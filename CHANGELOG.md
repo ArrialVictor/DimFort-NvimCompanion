@@ -24,8 +24,9 @@ below cover client-side changes only (commands, defaults, packaging).
 ### Added
 
 - **Root-source tag in the panel `Project:` line.** The footer
-  now appends `(dimfort.toml)`, `(folder)`, or `(file dir)` so a
-  glance reveals which marker anchored the workspace. Quiet,
+  now appends `(<marker-basename>)` or `(file dir)` — e.g.
+  `(dimfort.toml)`, or `(.git)` for projects that opt into
+  `setup{ root_markers = { "dimfort.toml", ".git" } }`. Quiet,
   persistent, discoverable. Matches the equivalent tag added to
   the VSCompanion and Emacs companions this cycle.
 
@@ -34,7 +35,9 @@ below cover client-side changes only (commands, defaults, packaging).
   chosen one, the plugin emits a one-time `vim.notify` INFO so
   the drift is surfaced (typically an unintended sub-project or
   configuration overlap). Per-root deduped — same root never warns
-  twice in one session.
+  twice in one session. Only fires for `dimfort.toml` specifically;
+  a duplicate `.git` upstream (the user's home or a personal-
+  projects parent) is noise rather than a sub-project signal.
 
 ## [0.2.6] — 2026-06-13
 
