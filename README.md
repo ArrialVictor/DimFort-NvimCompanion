@@ -118,7 +118,7 @@ require("dimfort").setup({
   max_workset_size = 40,                        -- cap on workset size
   external_modules = {},                        -- modules treated as known-out-of-workset
   filetypes        = { "fortran" },             -- buffers DimFort attaches to
-  root_markers     = { "dimfort.toml", ".git" },
+  root_markers     = { "dimfort.toml" },        -- `.git` removed in 0.2.7; pass `{ "dimfort.toml", ".git" }` to restore
   auto_attach      = true,                      -- attach via FileType autocmd
 })
 ```

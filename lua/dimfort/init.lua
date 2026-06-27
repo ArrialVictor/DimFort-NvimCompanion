@@ -85,7 +85,7 @@ local defaults = {
   max_workset_size = 40,
   external_modules = {},
   filetypes = { "fortran" },
-  root_markers = { "dimfort.toml", ".git" },
+  root_markers = { "dimfort.toml" },
   auto_attach = true,
   -- DimFort hover floats default to a rounded border so they read as
   -- a discrete card even when the user's colorscheme leaves
@@ -133,21 +133,85 @@ local function init_options()
   return opts
 end
 
+-- Track how the workspace root was determined for the most recently
+-- attached buffer so the panel can surface it in the ``Project:`` line.
+-- Module-level by design — one active LSP session per editor instance
+-- in practice; if multiple sessions ever coexist the panel surfaces
+-- whichever attached last (acceptable for a low-stakes informational
+-- display).
+M._root_source = nil  -- nil | "dimfort.toml" | "folder" | "file dir"
+
+-- Best-effort warn-once that a second ``dimfort.toml`` sits above the
+-- one we picked — typically signals an unintended sub-project or
+-- configuration drift. Guarded by ``_warned_nested_roots`` so a typing
+-- session over the same file pays the warning once.
+local _warned_nested_roots = {}
+
 -- Resolve the workspace root from any of the configured markers, or
 -- fall back to the file's containing directory.
+--
+-- Returns the resolved directory. Sets ``M._root_source`` as a side
+-- effect so the panel can surface the marker-source tag without
+-- threading it through every LSP-config call site. Emits a one-time
+-- ``vim.notify`` (INFO) when a second marker exists further up the
+-- tree from the chosen root.
 local function find_root(bufnr)
   local fname = vim.api.nvim_buf_get_name(bufnr)
   if fname == "" then
+    M._root_source = "folder"
     return vim.uv.cwd()
   end
-  local found = vim.fs.find(M.config.root_markers, {
+  local matches = vim.fs.find(M.config.root_markers, {
     upward = true,
     path = vim.fs.dirname(fname),
-  })[1]
+    limit = math.huge,
+  })
+  local found = matches[1]
   if found then
-    return vim.fs.dirname(found)
+    local root = vim.fs.dirname(found)
+    -- Tag with the actual marker basename, not the canonical
+    -- "dimfort.toml" — projects that override ``root_markers`` to
+    -- include ``.git`` (or anything else) should see their actual
+    -- marker reflected, not a hardcoded label.
+    M._root_source = vim.fs.basename(found)
+    -- Nested-marker warning: only fires for nested ``dimfort.toml``.
+    -- A second ``.git`` upstream is just the user's home or a
+    -- personal-projects parent — noise, not signal. The warning's
+    -- purpose is to surface unintended sub-project / configuration
+    -- drift, which only applies to DimFort's own project marker.
+    if vim.fs.basename(found) == "dimfort.toml" then
+      for i = 2, #matches do
+        if vim.fs.basename(matches[i]) == "dimfort.toml"
+            and not _warned_nested_roots[root] then
+          _warned_nested_roots[root] = true
+          vim.notify(
+            string.format(
+              "DimFort: found dimfort.toml at %s; note another exists at %s above. "
+              .. "The lower one is in effect — the upper one is ignored.",
+              found,
+              matches[i]
+            ),
+            vim.log.levels.INFO
+          )
+          break
+        end
+      end
+    end
+    return root
   end
+  M._root_source = "file dir"
   return vim.fs.dirname(fname)
+end
+
+-- Getter for the panel — reads the side effect ``find_root`` set.
+-- Returns a parenthesised tag suitable for appending to the
+-- ``Project:`` line (``(dimfort.toml)`` / ``(folder)`` / ``(file
+-- dir)``), or an empty string when nothing has been resolved yet.
+function M.root_source_tag()
+  if M._root_source == nil then
+    return ""
+  end
+  return "(" .. M._root_source .. ")"
 end
 
 -- Insert a literal LSP snippet at (line, character) into the buffer

@@ -825,6 +825,15 @@ local function render_all()
         fmt_count(snap.workspace.fire))
       ws_dim = snap.ws_stale
     end
+    -- Append the root-source tag (``(dimfort.toml)`` / ``(folder)`` /
+    -- ``(file dir)``) so a glance at the panel reveals which marker
+    -- anchored the workspace. Empty before the first attach (no tag
+    -- to append yet); silent in that case rather than rendering a
+    -- meaningless parenthesised void.
+    local root_tag = require("dimfort").root_source_tag()
+    if root_tag ~= "" then
+      ws_text = ws_text .. " " .. root_tag
+    end
     emit(cv, file_text .. "   " .. ws_text,
          nil, (file_dim and ws_dim) and "Comment" or nil)
     -- If only one half is dimmed, dim only that half via a per-row

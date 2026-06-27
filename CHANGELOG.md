@@ -7,6 +7,38 @@ This plugin is a thin LSP client for [DimFort](https://github.com/ArrialVictor/D
 behavioural changes mostly land in the DimFort server itself. Entries
 below cover client-side changes only (commands, defaults, packaging).
 
+## [Unreleased]
+
+### Changed
+
+- **`root_markers` default trimmed to `{ "dimfort.toml" }`.** Drops
+  `.git` from the default marker list to match the cross-companion
+  unification work in 0.2.7 — physicists' workflows don't all use
+  git, and a partial `.git` directory upstream can mis-anchor the
+  workspace. `dimfort.toml` is DimFort's project marker and is now
+  the sole default; the silent fallback when no marker is found
+  remains the file's directory. Projects relying on `.git` for root
+  detection can restore the prior behaviour by passing
+  `setup{ root_markers = { "dimfort.toml", ".git" } }`.
+
+### Added
+
+- **Root-source tag in the panel `Project:` line.** The footer
+  now appends `(<marker-basename>)` or `(file dir)` — e.g.
+  `(dimfort.toml)`, or `(.git)` for projects that opt into
+  `setup{ root_markers = { "dimfort.toml", ".git" } }`. Quiet,
+  persistent, discoverable. Matches the equivalent tag added to
+  the VSCompanion and Emacs companions this cycle.
+
+- **Nested-`dimfort.toml` warning.** When the upward walk for the
+  workspace root encounters a second `dimfort.toml` above the
+  chosen one, the plugin emits a one-time `vim.notify` INFO so
+  the drift is surfaced (typically an unintended sub-project or
+  configuration overlap). Per-root deduped — same root never warns
+  twice in one session. Only fires for `dimfort.toml` specifically;
+  a duplicate `.git` upstream (the user's home or a personal-
+  projects parent) is noise rather than a sub-project signal.
+
 ## [0.2.6] — 2026-06-13
 
 ### Highlight
