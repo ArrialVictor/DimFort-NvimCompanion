@@ -9,6 +9,31 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
+### Added
+
+- **Unexpected LSP-server-exit surfacing.** New `on_exit` handler
+  on the client config wired through `vim.lsp.start`. If the
+  server exits with a non-zero code without a clean shutdown
+  signal (`SIGTERM` / `SIGINT`), the companion emits a `vim.notify`
+  ERROR naming the exit code + pointing at `:LspLog`, and lists
+  common causes (missing `[lsp]` extra, Python crash mid-handler).
+  Previously the server-died case was invisible — the panel went
+  stale, new requests stopped attaching, the user had no signal
+  anything was wrong. Per-(code, signal) deduped so a rapid-retry
+  crash loop doesn't carpet the screen.
+
+### Fixed
+
+- **`workspace/executeCommand` error response now surfaces.** When
+  the server returns a transport-level error on `:DimFortCheckWorkspace`,
+  the companion now toasts the error message instead of silently
+  clearing the spinner. The `started: false` ack-shape (server
+  refused for a documented reason like "already in progress" or
+  "index not ready") stays silent on the companion side by design
+  — the server already toasts the reason via `window/showMessage`,
+  and Nvim's stock LSP handler routes that to `vim.notify`.
+  Annotated with `# audited(0.2.7)` so the silence is documented.
+
 ### Changed
 
 - **`root_markers` default trimmed to `{ "dimfort.toml" }`.** Drops
