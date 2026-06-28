@@ -44,6 +44,12 @@ end
 
 local function fire()
   for _, cb in ipairs(state.listeners) do
+    -- audited(0.2.7): silent-OK — a listener throwing here must not
+    -- block other listeners from firing or take down the workspace-
+    -- stats refresh flow. A listener bug surfaces as that listener's
+    -- specific UI element going stale; the rest stay current. The
+    -- alternative (raise + abort fan-out) would couple unrelated UI
+    -- elements to each other.
     pcall(cb)
   end
 end
@@ -175,14 +181,35 @@ function M.refresh_workspace(on_done)
     -- We're acknowledging the ack only. The real payload arrives
     -- later via the dimfort/workspaceCheckCompleted notification.
     if err then
+      -- audited(0.2.7): error-surfacing — workspace/executeCommand
+      -- error response (transport error, server unavailable, etc.)
+      -- previously silently cleared the spinner and the user saw
+      -- nothing happen after :DimFortCheckWorkspace. Toast so the
+      -- user knows the request failed at the wire level (distinct
+      -- from the server-toasted started:false refusal handled
+      -- below).
       state.ws_refreshing = false
       stop_spinner()
       fire()
+      vim.notify(
+        "DimFort: workspace check request failed — "
+          .. (err.message or vim.inspect(err)),
+        vim.log.levels.ERROR
+      )
       if on_done then on_done(false) end
       return
     end
     if present(ack) and ack.started == false then
-      -- Server refused (already in flight, or no workspace index).
+      -- audited(0.2.7): silent-OK — the server toasts the user-
+      -- visible refusal reason ("already in progress" / "index not
+      -- ready" / "no files found") via window/showMessage BEFORE
+      -- returning the started:false ack. Nvim's stock LSP handler
+      -- for window/showMessage routes that to vim.notify, so the
+      -- user already sees an explanatory popup. Adding a second
+      -- vim.notify here would double-warn the same event.
+      -- Companion's silence on this branch is by design — we just
+      -- reset the spinner state so the panel reflects the
+      -- non-refreshing condition.
       state.ws_refreshing = false
       stop_spinner()
       fire()

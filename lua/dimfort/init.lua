@@ -322,6 +322,11 @@ local function handle_extract_to_parameter(args)
 end
 
 -- Build the vim.lsp.start config for a given buffer.
+-- Dedup state for the unexpected-exit notification — same (code, signal)
+-- pair within the same Nvim session won't double-notify (e.g., if the
+-- LSP rapidly retries-and-fails on a persistent install error).
+local _warned_unexpected_exits = {}
+
 local function client_config(bufnr)
   return {
     name = "dimfort",
@@ -337,6 +342,39 @@ local function client_config(bufnr)
         handle_extract_to_parameter(cmd.arguments or {})
       end,
     },
+    -- audited(0.2.7): error-surfacing — unexpected LSP-server
+    -- exit was previously invisible to the user (the companion
+    -- just stopped attaching new requests; existing panel content
+    -- went stale). Surfacing via vim.notify ERROR makes the
+    -- failure mode observable. Normal shutdown (code=0 OR signal
+    -- in {SIGTERM, SIGINT}) is skipped — that's the user closing
+    -- Nvim or invoking :DimFortRestart cleanly. Dedup per (code,
+    -- signal) so a rapid-retry crash loop doesn't carpet the
+    -- screen.
+    on_exit = function(code, signal, _client_id)
+      local normal_exit = code == 0
+      local user_signal = signal == 15 or signal == 2  -- SIGTERM, SIGINT
+      if normal_exit or user_signal then
+        return
+      end
+      local key = string.format("code=%d signal=%d", code, signal)
+      if _warned_unexpected_exits[key] then
+        return
+      end
+      _warned_unexpected_exits[key] = true
+      vim.schedule(function()
+        vim.notify(
+          string.format(
+            "DimFort: LSP server exited unexpectedly (%s). "
+              .. "Check :LspLog for details; common causes include a "
+              .. "missing 'lsp' extra (pipx install 'dimfort[lsp]') or "
+              .. "a Python crash mid-handler.",
+            key
+          ),
+          vim.log.levels.ERROR
+        )
+      end)
+    end,
   }
 end
 
