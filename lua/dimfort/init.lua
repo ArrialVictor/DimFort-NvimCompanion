@@ -346,15 +346,18 @@ local function client_config(bufnr)
     -- exit was previously invisible to the user (the companion
     -- just stopped attaching new requests; existing panel content
     -- went stale). Surfacing via vim.notify ERROR makes the
-    -- failure mode observable. Normal shutdown (code=0 OR signal
-    -- in {SIGTERM, SIGINT}) is skipped — that's the user closing
-    -- Nvim or invoking :DimFortRestart cleanly. Dedup per (code,
-    -- signal) so a rapid-retry crash loop doesn't carpet the
-    -- screen.
+    -- failure mode observable. "Clean exit" requires BOTH
+    -- code==0 AND signal==0 — a SIGKILL ack-shape (code=0,
+    -- signal=9) is forced termination, not normal completion,
+    -- and must NOT skip the notification. Graceful user-initiated
+    -- signals (SIGTERM, SIGINT) are skipped — those are the user
+    -- closing Nvim or invoking :DimFortRestart cleanly. Dedup per
+    -- (code, signal) so a rapid-retry crash loop doesn't carpet
+    -- the screen.
     on_exit = function(code, signal, _client_id)
-      local normal_exit = code == 0
-      local user_signal = signal == 15 or signal == 2  -- SIGTERM, SIGINT
-      if normal_exit or user_signal then
+      local clean_exit = code == 0 and signal == 0
+      local graceful_signal = signal == 15 or signal == 2  -- SIGTERM, SIGINT
+      if clean_exit or graceful_signal then
         return
       end
       local key = string.format("code=%d signal=%d", code, signal)
