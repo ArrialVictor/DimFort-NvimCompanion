@@ -22,12 +22,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the silent-failure gate's diff-aware
+          # check can resolve the merge base against origin/main.
+          fetch-depth: 0
 
       - name: Install luacheck
         run: |
           sudo apt-get update
           sudo apt-get install -y luarocks
           sudo luarocks install luacheck
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Run luacheck
         # Globals listed match the Neovim runtime + standard
@@ -38,3 +47,16 @@ jobs:
             --globals vim \
             --no-max-line-length \
             --codes
+
+      - name: Silent-failure regression gate
+        # Diff-aware: any new `pcall(...)` in this PR must carry an
+        # `audited(0.2.X)` annotation OR capture the result in an
+        # `ok`-prefixed local. Pre-audit pcall sites are not
+        # flagged. See docs (server-side audit) for rationale.
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --quiet origin "${{ github.base_ref }}"
+          fi
+          python scripts/silent-failure-gate.py
