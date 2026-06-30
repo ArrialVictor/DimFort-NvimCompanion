@@ -46,6 +46,25 @@ below cover client-side changes only (commands, defaults, packaging).
   detection can restore the prior behaviour by passing
   `setup{ root_markers = { "dimfort.toml", ".git" } }`.
 
+- **`MANUAL_QA.md` reorganised around display surfaces.** The walk
+  now covers only what an LSP client can't reach: `vim.diagnostic`
+  sign / underline / virtual-text rendering, hover floating window
+  layout, panel ASCII tree alignment, fidget progress phases,
+  `vim.notify` messages, divider rendering, sort/display-mode visual
+  changes, command-rename verification, code-action snippet
+  placeholder behaviour. Server-side correctness (diagnostic codes,
+  hover / panel / inlay / workspace / coverage / code-action /
+  completion payloads) is now verified by the DimFort LSP
+  integration test suite that landed this cycle, so the manual walk
+  no longer re-checks them. Reorganised by display surface
+  (Diagnostic rendering, Hover, Side panel, Progress widget, etc.)
+  rather than by feature, with the fixtures kept up front and each
+  step referencing them by name + line. Net effect: 1174 → 637
+  lines (~46% reduction), every remaining step a pure display
+  invariant. A closing pointer maps the dropped checks back to the
+  specific LSP test file that covers them, so a regression triage
+  finds the wire-test counterpart fast.
+
 ### Added
 
 - **Root-source tag in the panel `Project:` line.** The footer
