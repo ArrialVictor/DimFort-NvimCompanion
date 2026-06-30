@@ -500,7 +500,10 @@ with the cursor on the relevant fixture line.
       **both** Scope and Imports together:
       - `canonical` (default): one column, base-SI form (`m·s⁻¹`).
       - `input`: one column, annotation as written (`m/s`).
-      - `both`: two columns, `input ⟶ normalised`.
+      - `both`: two columns side-by-side — `input` then `canonical`,
+        no arrow / separator glyph between (column spacing conveys
+        the relationship; matches the VSCode panel's `<td>`
+        convention).
 - [ ] **Unit-display persistence** — same setup-time pattern as
       sort: `panel_unit_display_mode = "both"` in `setup{}`.
 
