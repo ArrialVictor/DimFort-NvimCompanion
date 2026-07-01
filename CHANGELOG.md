@@ -46,6 +46,13 @@ below cover client-side changes only (commands, defaults, packaging).
   detection can restore the prior behaviour by passing
   `setup{ root_markers = { "dimfort.toml", ".git" } }`.
 
+- **`MANUAL_QA.md` — `both` unit-display mode wording corrected.**
+  The Surface 12 entry described the layout as `input ⟶ normalised`
+  with an arrow separator; the actual companion rendering uses bare
+  column separation. Updated to describe the side-by-side column
+  layout without the arrow. Mirrors the parallel fix in the
+  VSCompanion + Emacs companions.
+
 - **`MANUAL_QA.md` reorganised around display surfaces.** The walk
   now covers only what an LSP client can't reach: `vim.diagnostic`
   sign / underline / virtual-text rendering, hover floating window
