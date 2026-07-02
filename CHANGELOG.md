@@ -9,79 +9,35 @@ below cover client-side changes only (commands, defaults, packaging).
 
 ## [Unreleased]
 
-### Added
+## [0.2.7] — 2026-07-02
 
-- **Unexpected LSP-server-exit surfacing.** New `on_exit` handler
-  on the client config wired through `vim.lsp.start`. If the
-  server exits with a non-zero code without a clean shutdown
-  signal (`SIGTERM` / `SIGINT`), the companion emits a `vim.notify`
-  ERROR naming the exit code + pointing at `:LspLog`, and lists
-  common causes (missing `[lsp]` extra, Python crash mid-handler).
-  Previously the server-died case was invisible — the panel went
-  stale, new requests stopped attaching, the user had no signal
-  anything was wrong. Per-(code, signal) deduped so a rapid-retry
-  crash loop doesn't carpet the screen.
+### Highlight
 
-### Fixed
+Cross-companion polish release. Three threads:
 
-- **`workspace/executeCommand` error response now surfaces.** When
-  the server returns a transport-level error on `:DimFortCheckWorkspace`,
-  the companion now toasts the error message instead of silently
-  clearing the spinner. The `started: false` ack-shape (server
-  refused for a documented reason like "already in progress" or
-  "index not ready") stays silent on the companion side by design
-  — the server already toasts the reason via `window/showMessage`,
-  and Nvim's stock LSP handler routes that to `vim.notify`.
-  Annotated with `# audited(0.2.7)` so the silence is documented.
+1. **Workspace-root unification.** `dimfort.toml` is now the sole
+   default `root_markers` entry across all three companions, with a
+   root-source tag surfaced in the panel footer and a nested-marker
+   warning when the upward walk crosses a second `dimfort.toml`.
 
-### Changed
+2. **Silent-failure fixes.** Two previously invisible client-side
+   failure modes — unexpected LSP server exit, and
+   `workspace/executeCommand` transport errors — now surface via
+   `vim.notify`. A regression gate on the code paths involved
+   prevents the surfaces from drifting silent again.
 
-- **`MANUAL_QA.md` delim scene — toml key updated to 0.2.7 nested
-  format.** The Surface 17 delim scene documented the pre-0.2.7
-  flat `[parser] unit_comment_delimiters = [...]` key. The DimFort
-  server renamed this in 0.2.7 to the nested
-  `[parser.unit_comments].unit` table; the old key still parses but
-  the server warns to stderr and silently ignores it. Updated the
-  MANUAL_QA scene's `dimfort.toml` block to the new nested shape so
-  the delim walk actually exercises the bracket-pattern behaviour
-  it claims to test. Mirrors the parallel fix in the Emacs +
-  VSCompanion companions.
+3. **`MANUAL_QA.md` overhaul.** Reorganised around display surfaces
+   (what an LSP client can't reach from the wire), harness-covered
+   items flagged with `*`, delim scene updated to the DimFort 0.2.7
+   nested toml key, and a wording fix for the `both` unit-display
+   mode.
 
-- **`root_markers` default trimmed to `{ "dimfort.toml" }`.** Drops
-  `.git` from the default marker list to match the cross-companion
-  unification work in 0.2.7 — physicists' workflows don't all use
-  git, and a partial `.git` directory upstream can mis-anchor the
-  workspace. `dimfort.toml` is DimFort's project marker and is now
-  the sole default; the silent fallback when no marker is found
-  remains the file's directory. Projects relying on `.git` for root
-  detection can restore the prior behaviour by passing
-  `setup{ root_markers = { "dimfort.toml", ".git" } }`.
+### Recommended server version
 
-- **`MANUAL_QA.md` — `both` unit-display mode wording corrected.**
-  The Surface 12 entry described the layout as `input ⟶ normalised`
-  with an arrow separator; the actual companion rendering uses bare
-  column separation. Updated to describe the side-by-side column
-  layout without the arrow. Mirrors the parallel fix in the
-  VSCompanion + Emacs companions.
-
-- **`MANUAL_QA.md` reorganised around display surfaces.** The walk
-  now covers only what an LSP client can't reach: `vim.diagnostic`
-  sign / underline / virtual-text rendering, hover floating window
-  layout, panel ASCII tree alignment, fidget progress phases,
-  `vim.notify` messages, divider rendering, sort/display-mode visual
-  changes, command-rename verification, code-action snippet
-  placeholder behaviour. Server-side correctness (diagnostic codes,
-  hover / panel / inlay / workspace / coverage / code-action /
-  completion payloads) is now verified by the DimFort LSP
-  integration test suite that landed this cycle, so the manual walk
-  no longer re-checks them. Reorganised by display surface
-  (Diagnostic rendering, Hover, Side panel, Progress widget, etc.)
-  rather than by feature, with the fixtures kept up front and each
-  step referencing them by name + line. Net effect: 1174 → 637
-  lines (~46% reduction), every remaining step a pure display
-  invariant. A closing pointer maps the dropped checks back to the
-  specific LSP test file that covers them, so a regression triage
-  finds the wire-test counterpart fast.
+Pair this companion with DimFort **0.2.7+**. The delim MANUAL_QA
+scene assumes the nested `[parser.unit_comments].unit` toml key
+introduced by the DimFort server this cycle; older servers accept
+only the flat key.
 
 ### Added
 
@@ -100,6 +56,92 @@ below cover client-side changes only (commands, defaults, packaging).
   twice in one session. Only fires for `dimfort.toml` specifically;
   a duplicate `.git` upstream (the user's home or a personal-
   projects parent) is noise rather than a sub-project signal.
+
+- **Unexpected LSP-server-exit surfacing.** New `on_exit` handler
+  on the client config wired through `vim.lsp.start`. If the
+  server exits with a non-zero code without a clean shutdown
+  signal (`SIGTERM` / `SIGINT`), the companion emits a `vim.notify`
+  ERROR naming the exit code + pointing at `:LspLog`, and lists
+  common causes (missing `[lsp]` extra, Python crash mid-handler).
+  Previously the server-died case was invisible — the panel went
+  stale, new requests stopped attaching, the user had no signal
+  anything was wrong. Per-(code, signal) deduped so a rapid-retry
+  crash loop doesn't carpet the screen.
+
+### Changed
+
+- **`root_markers` default trimmed to `{ "dimfort.toml" }`.** Drops
+  `.git` from the default marker list to match the cross-companion
+  unification work this cycle — physicists' workflows don't all use
+  git, and a partial `.git` directory upstream can mis-anchor the
+  workspace. `dimfort.toml` is DimFort's project marker and is now
+  the sole default; the silent fallback when no marker is found
+  remains the file's directory. Projects relying on `.git` for root
+  detection can restore the prior behaviour by passing
+  `setup{ root_markers = { "dimfort.toml", ".git" } }`.
+
+- **`MANUAL_QA.md` reorganised around display surfaces.** The walk
+  now covers only what an LSP client can't reach: `vim.diagnostic`
+  sign / underline / virtual-text rendering, hover floating window
+  layout, panel ASCII tree alignment, fidget progress phases,
+  `vim.notify` messages, divider rendering, sort/display-mode visual
+  changes, command-rename verification, code-action snippet
+  placeholder behaviour. Server-side correctness (diagnostic codes,
+  hover / panel / inlay / workspace / coverage / code-action /
+  completion payloads) is verified by the DimFort LSP integration
+  test suite, so the manual walk no longer re-checks them.
+  Reorganised by display surface (Diagnostic rendering, Hover, Side
+  panel, Progress widget, etc.) rather than by feature, with the
+  fixtures kept up front and each step referencing them by name +
+  line. Net effect: 1174 → 637 lines (~46% reduction), every
+  remaining step a pure display invariant. A closing pointer maps
+  the dropped checks back to the specific test file that covers
+  them, so a regression triage finds the wire-test counterpart fast.
+
+- **`MANUAL_QA.md` — harness-covered items flagged with `*`.**
+  Steps whose payload is already asserted by an automated test now
+  carry a `*` marker with a footer legend, so a walker can skim
+  past display-invariant-only items and focus attention on the
+  purely visual surfaces. Mirrors the parallel change in the
+  VSCompanion + Emacs companions.
+
+- **`MANUAL_QA.md` delim scene — toml key updated to nested
+  format.** The delim scene documented the pre-0.2.7 flat
+  `[parser] unit_comment_delimiters = [...]` key. The DimFort
+  server renamed this to the nested `[parser.unit_comments].unit`
+  table; the old key still parses but the server warns to stderr
+  and silently ignores it. Updated the scene's `dimfort.toml`
+  block to the new nested shape so the delim walk actually
+  exercises the bracket-pattern behaviour it claims to test.
+  Mirrors the parallel fix in the Emacs + VSCompanion companions.
+
+- **`MANUAL_QA.md` — `both` unit-display mode wording corrected.**
+  The `both` mode entry described the layout as `input ⟶ normalised`
+  with an arrow separator; the actual companion rendering uses bare
+  column separation. Updated to describe the side-by-side column
+  layout without the arrow. Mirrors the parallel fix in the
+  VSCompanion + Emacs companions.
+
+### Fixed
+
+- **`workspace/executeCommand` error response now surfaces.** When
+  the server returns a transport-level error on
+  `:DimFortCheckWorkspace`, the companion now toasts the error
+  message instead of silently clearing the spinner. The
+  `started: false` ack-shape (server refused for a documented
+  reason like "already in progress" or "index not ready") stays
+  silent on the companion side by design — the server already
+  toasts the reason via `window/showMessage`, and Nvim's stock LSP
+  handler routes that to `vim.notify`. Annotated with
+  `# audited(0.2.7)` so the silence is documented.
+
+### CI
+
+- **Silent-failure regression gate.** A CI job asserts that the
+  `on_exit` handler and the `:DimFortCheckWorkspace` error branch
+  both surface via `vim.notify`, so a future refactor can't
+  quietly re-swallow them. Complements the manual audit that
+  landed the fixes.
 
 ## [0.2.6] — 2026-06-13
 
