@@ -8,8 +8,8 @@ payloads) is verified by the LSP integration suite at
 `DimFort/tests/lsp_integration/` — this walk does **not** re-check
 those.
 
-> Items marked `*` are covered by the internal automated GUI harness
-> (`qa-automation/`, internal-only). Spot-check on release rather than
+> Items marked `*` are covered by an internal automated harness
+> (not shipped). Spot-check on release rather than
 > exhaustively re-walking.
 
 Each step lists the **exact** visible result; anything that differs is
