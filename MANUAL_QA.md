@@ -8,6 +8,10 @@ payloads) is verified by the LSP integration suite at
 `DimFort/tests/lsp_integration/` — this walk does **not** re-check
 those.
 
+> Items marked `*` are covered by the internal automated GUI harness
+> (`qa-automation/`, internal-only). Spot-check on release rather than
+> exhaustively re-walking.
+
 Each step lists the **exact** visible result; anything that differs is
 a regression to file. The same fixtures are reused across surfaces, so
 save all six before starting.
@@ -192,16 +196,16 @@ Diagnostics render per the user's `vim.diagnostic` config (signs,
 underline, virtual text). Confirm the three severities are visibly
 distinct on the qa fixtures:
 
-- [ ] **Error** — on `qa.f90:25` (`bogus = c_sound * t`): the
+- [ ] * **Error** — on `qa.f90:25` (`bogus = c_sound * t`): the
       configured error rendering applies (default config: `E` sign in
       the sign column + red underline + red virtual text suffix).
-- [ ] **Warning** — on `qa.f90:23` (`real :: t_celsius`): warning
+- [ ] * **Warning** — on `qa.f90:23` (`real :: t_celsius`): warning
       rendering applies (default: `W` sign + orange underline + orange
       virtual text).
-- [ ] **Info (P001)** — on `unparsed_qa.f90:6` (`vel = * / +`): info
+- [ ] * **Info (P001)** — on `unparsed_qa.f90:6` (`vel = * / +`): info
       rendering applies (default: no sign + faint blue underline /
       squiggle). Visibly distinct from real errors above the line.
-- [ ] **Info (U020)** — on `qa.f90:35` (the `@unit_assume` line):
+- [ ] * **Info (U020)** — on `qa.f90:35` (the `@unit_assume` line):
       surfaces only as the panel's 🔵 row, no inline styling, no
       sign in the sign column (informational acknowledgement, not
       a problem).
@@ -220,7 +224,7 @@ distinct on the qa fixtures:
 Hover defaults to **`short`**. `K` opens a floating window with the
 unit surface.
 
-- [ ] **Single-symbol hover** — `K` on `c_sound` (`qa.f90:2`): the
+- [ ] * **Single-symbol hover** — `K` on `c_sound` (`qa.f90:2`): the
       floating window shows the single row `c_sound : m·s⁻¹` (the
       unit is rendered with **middle dot** `·` and **superscript
       minus** `⁻¹`, not ASCII `m/s`).
@@ -238,7 +242,7 @@ unit surface.
       ```
 
       Subsequent steps assume the same alignment pattern.
-- [ ] **Cycle hover mode** — `:DimFortCycleHover` cycles
+- [ ] * **Cycle hover mode** — `:DimFortCycleHover` cycles
       `disabled → short → detailed`; each tick echoes
       `DimFort: hover → <mode>` and **restarts the server**
       (verifiable via `:DimFortStatus` — the `active client id`
@@ -265,14 +269,14 @@ closes / reopens it.
 
 ### Layout
 
-- [ ] **Sections divider** — a horizontal separator line spans the
+- [ ] * **Sections divider** — a horizontal separator line spans the
       panel width between Cursor / Scope, Scope / Imports, and
       Imports / footer. Visible dividers always sit between two
       visible neighbours.
 - [ ] **Column alignment** — in the Expression tree (panel for any
       qa.f90 line), the unit column and marker column are aligned
       across rows regardless of identifier length.
-- [ ] **Footer always present** — `:DimFortToggleCursor`,
+- [ ] * **Footer always present** — `:DimFortToggleCursor`,
       `:DimFortToggleScope`, `:DimFortToggleImports` all three off:
       the panel still shows the `File: …   Project: …` footer row.
 - [ ] **Dividers adapt** — toggle Cursor off; the divider that sat
@@ -333,7 +337,7 @@ alone completes too fast to read every phase).
 
 ## Surface 5 — `:DimFortStatus` + `vim.notify`
 
-- [ ] **`:DimFortStatus`** prints **exactly** these 13 lines (the
+- [ ] * **`:DimFortStatus`** prints **exactly** these 13 lines (the
       `active client id` is whatever number this session assigned —
       the value 1 is typical for a fresh session):
 
@@ -353,7 +357,7 @@ alone completes too fast to read every phase).
         active client id    : 1
       ```
 
-- [ ] **Cycle commands echo new mode** — each of the following
+- [ ] * **Cycle commands echo new mode** — each of the following
       cycle commands reports the new value via `vim.notify` (and the
       echo area) on every tick:
       - `:DimFortCycleHover` → `DimFort: hover → {disabled,short,detailed}`
@@ -374,7 +378,7 @@ alone completes too fast to read every phase).
 
 ## Surface 6 — Inlay hints display
 
-- [ ] **Toggle visibility** — `:DimFortToggleInlayHints` →
+- [ ] * **Toggle visibility** — `:DimFortToggleInlayHints` →
       `[m·s⁻¹]`-style virtual text appears after variable use sites
       (qa.f90 makes this easy to scan). Toggle again → virtual text
       disappears.
@@ -392,12 +396,12 @@ alone completes too fast to read every phase).
 `vim.lsp.buf.code_action()` (Neovim 0.11 default mapping: `gra`)
 with the cursor on the relevant fixture line.
 
-- [ ] **Add `@unit{}`** — cursor on `t_celsius` (`qa.f90:23`). The
+- [ ] * **Add `@unit{}`** — cursor on `t_celsius` (`qa.f90:23`). The
       code-action picker surfaces **"add `@unit{}`"**. Applying
       inserts `!< @unit{}` and **leaves the cursor between the
       braces** (the `$0` snippet placeholder target works under
       Neovim's snippet apply path).
-- [ ] **Extract literal** — cursor on `273.15` (`qa.f90:26`). Picker
+- [ ] * **Extract literal** — cursor on `273.15` (`qa.f90:26`). Picker
       surfaces **"extract literal to PARAMETER"**. Applying prompts
       via `vim.ui.input` for a name, then inserts a typed
       `real, parameter` declaration and replaces the literal with the
@@ -410,7 +414,7 @@ with the cursor on the relevant fixture line.
 
 ## Surface 8 — Navigation & completion
 
-- [ ] **`vim.lsp.buf.definition()` lands at decl** — on a `c_sound`
+- [ ] * **`vim.lsp.buf.definition()` lands at decl** — on a `c_sound`
       use, `vim.lsp.buf.definition()` (default mapping `gd`) lands
       the cursor on `qa.f90:2` (the declaration line).
 - [ ] **Cross-file `<CR>` in panel** — open `imports_qa.f90`, panel
@@ -420,14 +424,14 @@ with the cursor on the relevant fixture line.
       the transitive `g0` row; `<CR>` on it **jumps cross-file** to
       `phys_base`'s declaration line. Same-buffer or cross-buffer
       depending on the row.
-- [ ] **LSP completion in `@unit{`** — type a new `!< @unit{` and
+- [ ] * **LSP completion in `@unit{`** — type a new `!< @unit{` and
       trigger LSP completion (`<C-x><C-o>`, or your completion
       plugin's trigger); unit names are offered in the candidates
       popup.
 
 ## Surface 9 — Filter commands
 
-- [ ] **Scope filter** — `:DimFortScopeFilter Pa` narrows the Scope
+- [ ] * **Scope filter** — `:DimFortScopeFilter Pa` narrows the Scope
       section to vars whose name or unit matches `Pa`. Panel header
       reads `Filter: "Pa"`. Scopes with no surviving variables are
       hidden. `:DimFortScopeFilter` with no argument clears it.
@@ -437,7 +441,7 @@ with the cursor on the relevant fixture line.
 
 ## Surface 10 — Coverage visualization
 
-- [ ] **Three-mode cycle** — `:DimFortCycleCoverage` cycles
+- [ ] * **Three-mode cycle** — `:DimFortCycleCoverage` cycles
       `gutter → background → disabled`. `vim.notify` reports each
       tick. Visual states:
       - **gutter**: green dots in the sign column on annotated /
@@ -455,7 +459,7 @@ with the cursor on the relevant fixture line.
         matching tier colour; sign-column dots **gone**. The two
         modes are **mutually exclusive**.
       - **disabled**: all coverage decorations clear.
-- [ ] **No LSP restart on mode flip** — note the `active client id`
+- [ ] * **No LSP restart on mode flip** — note the `active client id`
       via `:DimFortStatus`. Cycle the coverage mode three times. Run
       `:DimFortStatus` again — the **same** `active client id`
       (no restart). Contrast with `:DimFortCycleHover` which **does**
@@ -469,7 +473,7 @@ with the cursor on the relevant fixture line.
 
 ## Surface 11 — `:DimFortCoverageReport` floating window
 
-- [ ] **Cold-open populates** — fresh session, open `qa.f90`,
+- [ ] * **Cold-open populates** — fresh session, open `qa.f90`,
       immediately run `:DimFortCoverageReport`. A floating window
       opens with a File / Project table. File row populates with the
       current buffer's coverage stats (cold-open works without
@@ -487,7 +491,7 @@ with the cursor on the relevant fixture line.
 
 ## Surface 12 — Panel sort & unit-display modes (0.2.6)
 
-- [ ] **Sort cycle** — `:DimFortCycleSortMode` cycles
+- [ ] * **Sort cycle** — `:DimFortCycleSortMode` cycles
       `line → alphabetic → status`. Both Scope and Imports re-sort
       in the **same panel repaint** (no LSP round-trip — panel
       repaints from cached payload).
@@ -495,7 +499,7 @@ with the cursor on the relevant fixture line.
       disk. To start a session with a non-default sort, set
       `panel_sort_mode = "alphabetic"` in your
       `require('dimfort').setup{...}` call.
-- [ ] **Unit-display cycle** — `:DimFortCycleUnitDisplay` cycles
+- [ ] * **Unit-display cycle** — `:DimFortCycleUnitDisplay` cycles
       `canonical → input → both`. Column layout changes per mode in
       **both** Scope and Imports together:
       - `canonical` (default): one column, base-SI form (`m·s⁻¹`).
@@ -515,24 +519,24 @@ subsection.
 
 ### `dimfort.toml`
 
-- [ ] **Empty cold-create** — `:DimFortOpenConfig` → pick
+- [ ] * **Empty cold-create** — `:DimFortOpenConfig` → pick
       `Project configuration file (dimfort.toml)`. A `vim.ui.select`
       sub-pick shows `Empty file` and
       `Reference template (all sections commented out)`. Pick
       `Empty file`. A new `dimfort.toml` appears at the cwd, opens
       in the current buffer, contains just the minimal header.
       `vim.notify`: `DimFort: created <path>/dimfort.toml`.
-- [ ] **Reference cold-create** — same, pick `Reference template …`.
+- [ ] * **Reference cold-create** — same, pick `Reference template …`.
       The file's `[units]` / `[parser]` / `[diagnostics]` /
       `[scale]` / `[project]` section headers are all present but
       each line is prefixed with `# `.
-- [ ] **Warm-open** — run again, pick
+- [ ] * **Warm-open** — run again, pick
       `Project configuration file …`. Opens existing file with **no
       sub-pick** and **no modification**. No "created" notify.
 
 ### `units.toml`
 
-- [ ] **Empty cold-create** — `:DimFortOpenConfig` → pick
+- [ ] * **Empty cold-create** — `:DimFortOpenConfig` → pick
       `Project units file (units.toml)`. Sub-pick shows
       `Empty file` and `Reference template …`. Pick `Empty file`. A
       new `units.toml` appears alongside an empty stub. A new
@@ -547,7 +551,7 @@ subsection.
       command, pick units file. Existing `dimfort.toml` is
       **appended with** `[units]\nfile = "units.toml"`; original
       sections preserved.
-- [ ] **Existing `[units]` declines** — pre-create a `dimfort.toml`
+- [ ] * **Existing `[units]` declines** — pre-create a `dimfort.toml`
       containing `[units]\nother_key = "value"\n`. Run command, pick
       units file. WARN-level notify:
       `DimFort: created units.toml. Your dimfort.toml already has
@@ -557,12 +561,12 @@ subsection.
 
 ## Surface 14 — Server-restart behaviour on cycle commands
 
-- [ ] **Restarting cycles** — `:DimFortCycleHover`,
+- [ ] * **Restarting cycles** — `:DimFortCycleHover`,
       `:DimFortCycleScale`, `:DimFortCycleCache` each **restart the
       server** on every tick. Verify via `:DimFortStatus` — the
       `active client id` changes after each tick. The new mode
       persists across the restart.
-- [ ] **Non-restarting cycles** — `:DimFortCycleCoverage`,
+- [ ] * **Non-restarting cycles** — `:DimFortCycleCoverage`,
       `:DimFortCycleSortMode`, `:DimFortCycleUnitDisplay` each do
       **not** restart the server (client-side rendering modes only;
       `active client id` is stable).
@@ -574,7 +578,7 @@ subsection.
 
 ## Surface 15 — Command-name parity
 
-- [ ] **`:DimFortTogglePanel`** is the canonical name (renamed from
+- [ ] * **`:DimFortTogglePanel`** is the canonical name (renamed from
       `:DimFortPanelToggle` in 0.2.6 for cross-companion consistency).
       `:DimFortPanelToggle` is **not** offered as a command (the old
       name is gone, beta-period rename per release-cycle convention).
@@ -583,7 +587,7 @@ subsection.
 
 (Open `poly_qa.f90`.)
 
-- [ ] **Scope rows** — cursor in `avg_two`'s body. Scope lists `x`,
+- [ ] * **Scope rows** — cursor in `avg_two`'s body. Scope lists `x`,
       `y`, `mean` each with unit cell `'a` and `half` with `1`. The
       `'a` cells render at **full weight** (no `Comment` highlight)
       — same visual weight as concrete units like `m` in
@@ -600,11 +604,11 @@ subsection.
 (Open `delim_qa.f90` with the companion `dimfort.toml` saved next
 to it.)
 
-- [ ] **Bracket-pattern hover** — `K` on `pa`, `a`/`b`/`c`, or `kg`
+- [ ] * **Bracket-pattern hover** — `K` on `pa`, `a`/`b`/`c`, or `kg`
       shows the bracket-captured unit in the hover floating window
       (the toml configures `[…]` as a unit delimiter pattern
       alongside `@unit{…}`).
-- [ ] **Plain `!` eligibility** — `K` on `ws` (line 4) shows `m/s`;
+- [ ] * **Plain `!` eligibility** — `K` on `ws` (line 4) shows `m/s`;
       the `! @unit{m/s}` form has no Doxygen marker but still
       surfaces the unit.
 - [ ] **U002 quick-fix** — `vim.lsp.buf.code_action()` on the
